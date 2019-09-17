@@ -28,7 +28,14 @@ start_link() ->
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
+    SupFlags = #{strategy  => one_for_one,
+                 intensity => 5,
+                 period    => 10
+                },
+    Child = #{id => ?MODULE,
+              start => {example_server, start_link, []},
+              restart => permanent},
+    {ok, {SupFlags, [Child]} }.
 
 %%====================================================================
 %% Internal functions

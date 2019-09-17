@@ -5,7 +5,9 @@
   {mod, { example_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    cli,
+    cfg
    ]},
   {env,[]},
   {modules, []},
