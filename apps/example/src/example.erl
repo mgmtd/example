@@ -24,7 +24,7 @@
 init() ->
     cfg:load_schema({?MODULE, cfg_schema}, "http://example.org"),
     cfg:load_schema(fun() -> cfg_schema() end),
-    {ok, _Pid} = cli:open("/var/tmp/example.socket").
+    {ok, _Pid} = cli:open("/var/tmp/example.socket", example_cli).
 
 cfg_schema() ->
     [
