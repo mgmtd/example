@@ -57,22 +57,22 @@ prompt(#example_cli{mode = Mode}) ->
 
 
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], cli:format_menu(operational_menu(J), cmd_getters()), J};
+    {no, [], cli:format_menu(operational_menu(), cmd_getters()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% io:format("expand ~p~n",[Chars]),
-    expand_cmd(Chars, operational_menu(J), J);
+    expand_cmd(Chars, operational_menu(), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], cli:format_menu(configuration_menu(J), cmd_getters()), J};
+    {no, [], cli:format_menu(configuration_menu(), cmd_getters()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     io:format("expand config ~p~n",[Chars]),
-    expand_cmd(Chars, configuration_menu(J), J).
+    expand_cmd(Chars, configuration_menu(), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
     io:format("Executing operational Command ~p~n",[CmdStr]),
-    execute_cmd(CmdStr, operational_menu(J), J);
+    execute_cmd(CmdStr, operational_menu(), J);
 execute(CmdStr, #example_cli{mode = configuration} = J) ->
     io:format("Executing configuration Command ~p~n",[CmdStr]),
-    execute_cmd(CmdStr, configuration_menu(J), J).
+    execute_cmd(CmdStr, configuration_menu(), J).
 
 
 
@@ -82,14 +82,14 @@ execute(CmdStr, #example_cli{mode = configuration} = J) ->
 %% The Grammar list provides a mechanism to specify the various parts
 %% of an entire command
 %%--------------------------------------------------------------------
-operational_menu(#example_cli{user_txn = Txn}) ->
+operational_menu() ->
     [#cmd{node_type = container,
           node = "show",
           desc = "Show commands",
-          action = fun(Item, _Value) ->
-                           show_operational(Txn, Item)
+          action = fun(J, Item, _Value) ->
+                           show_operational(J, Item)
                    end,
-          children = fun(J1) -> operational_show_menu(J1) end
+          children = fun() -> operational_show_menu() end
          },
      #cmd{node_type = leaf,
           node = "configure",
@@ -103,11 +103,11 @@ operational_menu(#example_cli{user_txn = Txn}) ->
          }
     ].
 
-operational_show_menu(#example_cli{}) ->
+operational_show_menu() ->
     [#cmd{node_type = leaf,
           node = "configuration",
           desc = "Show current configuration",
-          children = cli:tree(fun(Txn) -> example:cfg_schema(Txn) end,
+          children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
                               [{getters,  cfg_getters()},
                                {pipe_cmds, []}]),
           action = fun(J1, Item, _) -> show_status(J1, Item) end
@@ -129,13 +129,14 @@ operational_show_menu(#example_cli{}) ->
          }
     ].
 
-configuration_menu(#example_cli{}) ->
+configuration_menu() ->
     [#cmd{node_type = container,
           node = "show",
           desc = "Show configuration",
           children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
                               [{getters, cfg_getters()},
-                               {pipe_cmds, []}])
+                               {pipe_cmds, []}]),
+          action = fun(Txn, Path, Value) -> cfg:show(Txn, Path, Value) end
          },
      #cmd{node_type = container,
           node = "set",
@@ -264,15 +265,10 @@ no_match_top_level_test_() ->
     Result = expand("x", J),
     ?_assertMatch( {no, "", [], #example_cli{mode = operational}}, Result).
 
-partial_match_multiple_test_() ->
-    {ok, J} = init(),
-    Result = expand("c", J),
-    ?_assertMatch({yes, "o", ["\r\n", [_,_]], #example_cli{mode = operational}}, Result).
-
 add_space_top_level_test_() ->
     {ok, J} = init(),
     Result = expand("show", J),
-    ?_assertMatch({yes, " ",  ["\r\n", [_,_,_]], #example_cli{mode = operational}}, Result).
+    ?_assertMatch({yes, " ",  ["\r\n", _], #example_cli{mode = operational}}, Result).
 
 
 -endif.
