@@ -21,7 +21,8 @@
          user_txn             % Transaction store for command sequences that need one
         }).
 
--record(menu_item,
+%% Record for a command node sitting at the root of the tree
+-record(cmd,
         {
          node_type = leaf,
          node,
@@ -56,84 +57,103 @@ prompt(#example_cli{mode = Mode}) ->
 
 
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], cli:format_menu(operational_menu(), getters()), J};
+    {no, [], cli:format_menu(operational_menu(J), cmd_getters()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% io:format("expand ~p~n",[Chars]),
-    match_menu_item(Chars, operational_menu(), J);
+    expand_cmd(Chars, operational_menu(J), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], cli:format_menu(configuration_menu(), getters()), J};
+    {no, [], cli:format_menu(configuration_menu(J), cmd_getters()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     io:format("expand config ~p~n",[Chars]),
-    match_menu_item(Chars, configuration_menu(), J).
+    expand_cmd(Chars, configuration_menu(J), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
     io:format("Executing operational Command ~p~n",[CmdStr]),
-    execute_menu_item(CmdStr, operational_menu(), J);
+    execute_cmd(CmdStr, operational_menu(J), J);
 execute(CmdStr, #example_cli{mode = configuration} = J) ->
     io:format("Executing configuration Command ~p~n",[CmdStr]),
-    execute_menu_item(CmdStr, configuration_menu(), J).
+    execute_cmd(CmdStr, configuration_menu(J), J).
 
 
 
 %%--------------------------------------------------------------------
 %% Menu definitions
+%%
+%% The Grammar list provides a mechanism to specify the various parts
+%% of an entire command
 %%--------------------------------------------------------------------
-operational_menu() ->
-    [#menu_item{node_type = container,
-                node = "show",
-                desc = "Show commands",
-                action = fun(J, Item, _Value) ->
-                                 show_operational(J, Item)
-                         end,
-                children = fun() -> operational_show_menu() end
-               },
-     #menu_item{node_type = leaf,
-                node = "configure",
-                desc = "Enter configuration mode",
-                action = fun(J, _, _) -> enter_config_mode(J) end
-               },
-     #menu_item{node_type = leaf,
-                node = "colose",
-                desc = "Close session",
-                action = fun(J) -> enter_config_mode(J) end
-               }
+operational_menu(#example_cli{user_txn = Txn}) ->
+    [#cmd{node_type = container,
+          node = "show",
+          desc = "Show commands",
+          action = fun(Item, _Value) ->
+                           show_operational(Txn, Item)
+                   end,
+          children = fun(J1) -> operational_show_menu(J1) end
+         },
+     #cmd{node_type = leaf,
+          node = "configure",
+          desc = "Enter configuration mode",
+          action = fun(J1, _, _) -> enter_config_mode(J1) end
+         },
+     #cmd{node_type = leaf,
+          node = "exit",
+          desc = "Close session",
+          action = fun(J1) -> enter_config_mode(J1) end
+         }
     ].
 
-operational_show_menu() ->
-    [#menu_item{node_type = leaf,
-                node = "status",
-                desc = "Status summary",
-                action = fun(J, Item, _) -> show_status(J, Item) end
-               },
-     #menu_item{node_type = leaf,
-                node = "sockets",
-                desc = "Open sockets",
-                action = fun(J, Item, _) -> show_status(J, Item) end
-               },
-     #menu_item{node_type = leaf,
-                node = "interface",
-                desc = "Interface status",
-                action = fun(J, Item, _) -> show_interface_status(J, Item) end
-               }
-     ].
+operational_show_menu(#example_cli{}) ->
+    [#cmd{node_type = leaf,
+          node = "configuration",
+          desc = "Show current configuration",
+          children = cli:tree(fun(Txn) -> example:cfg_schema(Txn) end,
+                              [{getters,  cfg_getters()},
+                               {pipe_cmds, []}]),
+          action = fun(J1, Item, _) -> show_status(J1, Item) end
+         },
+     #cmd{node_type = leaf,
+          node = "status",
+          desc = "Status summary",
+          action = fun(J1, Item, _) -> show_status(J1, Item) end
+         },
+     #cmd{node_type = leaf,
+          node = "sockets",
+          desc = "Open sockets",
+          action = fun(J, Item, _) -> show_status(J, Item) end
+         },
+     #cmd{node_type = leaf,
+          node = "interface",
+          desc = "Interface status",
+          action = fun(J, Item, _) -> show_interface_status(J, Item) end
+         }
+    ].
 
-configuration_menu() ->
-    [#menu_item{node_type = container,
-                node = "show",
-                desc = "Show configuration",
-                children = fun() -> configuration_tree() end
-               },
-     #menu_item{node_type = container,
-                node = "set",
-                desc = "Set a configuration parameter",
-                action = fun(Txn, Path, Value) -> cfg:set(Txn, Path, Value) end
-               },
-     #menu_item{node_type = leaf,
-                node = "exit",
-                desc = "Exit configuration mode",
-                action = fun(J, _, _) -> exit_config_mode(J) end
-               }
-     ].
+configuration_menu(#example_cli{}) ->
+    [#cmd{node_type = container,
+          node = "show",
+          desc = "Show configuration",
+          children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
+                              [{getters, cfg_getters()},
+                               {pipe_cmds, []}])
+         },
+     #cmd{node_type = container,
+          node = "set",
+          desc = "Set a configuration parameter",
+          children =
+              cli:sequence(
+                [cli:tree(fun(_Txn) -> example:cfg_schema() end,
+                          [{getters,  cfg_getters()}]),
+                 cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
+                ]),
+          action = fun(Txn, Path, Value) -> cfg:set(Txn, Path, Value) end
+         },
+     #cmd{node_type = leaf,
+          node = "exit",
+          desc = "Exit configuration mode",
+          action = fun(J1, _, _) -> exit_config_mode(J1) end
+         }
+    ].
 
 %%--------------------------------------------------------------------
 %% Action implementations
@@ -155,10 +175,6 @@ show_interface_status(#example_cli{} = J, _Item) ->
 show_operational(#example_cli{user_txn = _Txn}, Item) ->
     io:format("Executing show operational ~p~n",[Item]),
     {ok, "Operational statuses\r\n"}.
-
-configuration_tree() ->
-    {switch_getters, cfg:getters(), example:cfg_schema()}.
-
 
 
 %%--------------------------------------------------------------------
@@ -182,18 +198,20 @@ configuration_tree() ->
 %% 5. The string matches several possible items - complete as far as
 %%    we can and prompt the user with the possible matches
 
-match_menu_item(Str, Menu, J) ->
-    %% io:format("match_menu_item ~p~n",[Str]),
-    %% Use the library function provided in cli to take care of the expansion
-    case cli:expand(Str, Menu, getters()) of
+expand_cmd(Str, Menu, J) ->
+    %% io:format("match_cmd ~p~n",[Str]),
+
+    %% Use the library function provided in cli.erl to take care of
+    %% the expansion.
+    case cli:expand(Str, Menu, cmd_getters(), J) of
         no ->
             {no, [], [], J};
-        {yes, Extra, MenuItems, Getters} ->
-            {yes, Extra, cli:format_menu(MenuItems, Getters), J}
+        {yes, Extra, MenuItems} ->
+            {yes, Extra, MenuItems, J}
     end.
 
-execute_menu_item(CmdStr, Menu, J) ->
-    case cli:lookup(CmdStr, Menu, getters()) of
+execute_cmd(CmdStr, Menu, J) ->
+    case cli:lookup(CmdStr, Menu, cmd_getters()) of
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
@@ -211,20 +229,22 @@ execute_menu_item(CmdStr, Menu, J) ->
             end
     end.
 
-%% Set up the structure needed for the generic expander to know enough about our #menu_item{}s
-getters() ->
+%% Set up the structure needed for the generic expander to know enough about our #cmd{}s
+cmd_getters() ->
     cli:getters(fun name/1, fun desc/1, fun children/1, fun action/1, fun node_type/1).
 
-name(#menu_item{node = Name}) -> Name.
+name(#cmd{node = Name}) -> Name.
 
-desc(#menu_item{desc = Desc}) -> Desc.
+desc(#cmd{desc = Desc}) -> Desc.
 
-children(#menu_item{children = Cs}) -> Cs.
+children(#cmd{children = Children}) -> Children.
 
-node_type(#menu_item{node_type = Type}) -> Type.
+node_type(#cmd{node_type = Type}) -> Type.
 
-action(#menu_item{action = Action}) -> Action.
+action(#cmd{action = Action}) -> Action.
 
+cfg_getters() ->
+    cli:getters(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/1, fun cfg:action/1, fun cfg:node_type/1).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
