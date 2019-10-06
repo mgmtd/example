@@ -147,7 +147,7 @@ configuration_menu() ->
                           [{getters,  cfg_getters()}]),
                  cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
                 ]),
-          action = fun(Txn, Path, Value) -> cfg:set(Txn, Path, Value) end
+          action = fun(#example_cli{user_txn = Txn}, Path, Value) -> cfg:set(Txn, Path, Value) end
          },
      #cmd{node_type = leaf,
           node = "exit",
@@ -216,7 +216,7 @@ execute_cmd(CmdStr, Menu, J) ->
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
-            Action = action(Cmd),
+            Action = action(hd(Cmd)),
             case catch Action(J, Leaf, Value) of
                 {'EXIT', Reason} ->
                     io:format("Executing configuration exit ~p~n",[Reason]),
