@@ -144,7 +144,8 @@ configuration_menu() ->
           children =
               cli:sequence(
                 [cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                          [{getters,  cfg_getters()}]),
+                          [{getters,  cfg_getters()},
+                           {add_list_items, true}]),
                  cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
                 ]),
           action = fun(#example_cli{user_txn = Txn}, Path, Value) -> cfg:set(Txn, Path, Value) end
@@ -204,15 +205,15 @@ expand_cmd(Str, Menu, J) ->
 
     %% Use the library function provided in cli.erl to take care of
     %% the expansion.
-    case cli:expand(Str, Menu, cmd_getters(), J) of
+    case cli:expand(Str, Menu, cmd_getters(), J#example_cli.user_txn) of
         no ->
             {no, [], [], J};
         {yes, Extra, MenuItems} ->
             {yes, Extra, MenuItems, J}
     end.
 
-execute_cmd(CmdStr, Menu, J) ->
-    case cli:lookup(CmdStr, Menu, cmd_getters()) of
+execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
+    case cli:lookup(CmdStr, Menu, cmd_getters(), Txn) of
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
@@ -245,7 +246,7 @@ node_type(#cmd{node_type = Type}) -> Type.
 action(#cmd{action = Action}) -> Action.
 
 cfg_getters() ->
-    cli:getters(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/1, fun cfg:action/1, fun cfg:node_type/1).
+    cli:getters(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/3, fun cfg:action/1, fun cfg:node_type/1).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

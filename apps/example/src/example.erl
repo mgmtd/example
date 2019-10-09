@@ -29,7 +29,8 @@ init() ->
 cfg_schema() ->
     [
      cfg:container("interface", "Interface configuration", fun() -> interface_schema() end),
-     cfg:container("server", "Server configuration", fun() -> server_schema() end)
+     cfg:container("server", "Server configuration",
+                   fun() -> server_list_schema() end)
     ].
 
 %%%===================================================================
@@ -41,10 +42,15 @@ interface_schema() ->
      cfg:leaf( "speed", "Interface speed", {enum, [{"1GbE", "1 Gigabit/s Ethernet"}]})
     ].
 
+server_list_schema() ->
+    [
+     cfg:list("servers", "Server list", {"name"},
+              fun() -> server_schema() end, [])
+    ].
 
 server_schema() ->
    [
-    cfg:leaf( "name", "Server common name", string),
+    cfg:leaf( "name", "Server name", string),
     cfg:leaf( "host", "Server hostname", ip_addr),
     cfg:leaf( "port", "Listen port", inet_port)
    ].
