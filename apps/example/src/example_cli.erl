@@ -57,12 +57,12 @@ prompt(#example_cli{mode = Mode}) ->
 
 
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], cli:format_menu(operational_menu(), cmd_getters()), J};
+    {no, [], cli:format_menu(operational_menu(), cmd_accessors()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% io:format("expand ~p~n",[Chars]),
     expand_cmd(Chars, operational_menu(), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], cli:format_menu(configuration_menu(), cmd_getters()), J};
+    {no, [], cli:format_menu(configuration_menu(), cmd_accessors()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     io:format("expand config ~p~n",[Chars]),
     expand_cmd(Chars, configuration_menu(), J).
@@ -108,7 +108,7 @@ operational_show_menu() ->
           node = "configuration",
           desc = "Show current configuration",
           children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                              [{getters,  cfg_getters()},
+                              [{accessors,  cfg_accessors()},
                                {pipe_cmds, []}]),
           action = fun(J1, Item, _) -> show_status(J1, Item) end
          },
@@ -134,7 +134,7 @@ configuration_menu() ->
           node = "show",
           desc = "Show configuration",
           children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                              [{getters, cfg_getters()},
+                              [{accessors, cfg_accessors()},
                                {pipe_cmds, []}]),
           action = fun(Txn, Path, Value) -> cfg:show(Txn, Path, Value) end
          },
@@ -144,7 +144,7 @@ configuration_menu() ->
           children =
               cli:sequence(
                 [cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                          [{getters,  cfg_getters()},
+                          [{accessors,  cfg_accessors()},
                            {add_list_items, true}]),
                  cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
                 ]),
@@ -205,7 +205,7 @@ expand_cmd(Str, Menu, J) ->
 
     %% Use the library function provided in cli.erl to take care of
     %% the expansion.
-    case cli:expand(Str, Menu, cmd_getters(), J#example_cli.user_txn) of
+    case cli:expand(Str, Menu, cmd_accessors(), J#example_cli.user_txn) of
         no ->
             {no, [], [], J};
         {yes, Extra, MenuItems} ->
@@ -213,7 +213,7 @@ expand_cmd(Str, Menu, J) ->
     end.
 
 execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
-    case cli:lookup(CmdStr, Menu, cmd_getters(), Txn) of
+    case cli:lookup(CmdStr, Menu, cmd_accessors(), Txn) of
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
@@ -232,8 +232,8 @@ execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
     end.
 
 %% Set up the structure needed for the generic expander to know enough about our #cmd{}s
-cmd_getters() ->
-    cli:getters(fun name/1, fun desc/1, fun children/1, fun action/1, fun node_type/1).
+cmd_accessors() ->
+    cli:accessors(fun name/1, fun desc/1, fun children/1, fun action/1, fun node_type/1).
 
 name(#cmd{node = Name}) -> Name.
 
@@ -245,8 +245,11 @@ node_type(#cmd{node_type = Type}) -> Type.
 
 action(#cmd{action = Action}) -> Action.
 
-cfg_getters() ->
-    cli:getters(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/3, fun cfg:action/1, fun cfg:node_type/1).
+cfg_accessors() ->
+    cli:accessors(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/3,
+                  fun cfg:action/1, fun cfg:node_type/1,
+                  fun cfg:list_key_names/1, fun cfg:list_key_values/1,
+                  fun cfg:set_list_key_values/2).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

@@ -44,7 +44,7 @@ interface_schema() ->
 
 server_list_schema() ->
     [
-     cfg:list("servers", "Server list", {"name"},
+     cfg:list("servers", "Server list", ["name"],
               fun() -> server_schema() end, [])
     ].
 
