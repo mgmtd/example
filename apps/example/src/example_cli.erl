@@ -8,6 +8,9 @@
 %%%-------------------------------------------------------------------
 -module(example_cli).
 
+-define(DBG(DATA), io:format("[~p:~p] ~p~n",[?MODULE, ?LINE, DATA])).
+-define(DBG(FORMAT, ARGS), io:format("[~p:~p] " ++ FORMAT,[?MODULE, ?LINE] ++ ARGS)).
+
 -export([init/0,
          banner/1,
          prompt/1,
@@ -59,19 +62,19 @@ prompt(#example_cli{mode = Mode}) ->
 expand([], #example_cli{mode = operational} = J) ->
     {no, [], cli:format_menu(operational_menu(), cmd_accessors()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
-    %% io:format("expand ~p~n",[Chars]),
+    %% ?DBG("expand ~p~n",[Chars]),
     expand_cmd(Chars, operational_menu(), J);
 expand([], #example_cli{mode = configuration} = J) ->
     {no, [], cli:format_menu(configuration_menu(), cmd_accessors()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
-    io:format("expand config ~p~n",[Chars]),
+    ?DBG("expand config ~p~n",[Chars]),
     expand_cmd(Chars, configuration_menu(), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
-    io:format("Executing operational Command ~p~n",[CmdStr]),
+    ?DBG("Executing operational Command ~p~n",[CmdStr]),
     execute_cmd(CmdStr, operational_menu(), J);
 execute(CmdStr, #example_cli{mode = configuration} = J) ->
-    io:format("Executing configuration Command ~p~n",[CmdStr]),
+    ?DBG("Executing configuration Command ~p~n",[CmdStr]),
     execute_cmd(CmdStr, configuration_menu(), J).
 
 
@@ -148,7 +151,12 @@ configuration_menu() ->
                            {add_list_items, true}]),
                  cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
                 ]),
-          action = fun(#example_cli{user_txn = Txn}, Path, Value) -> cfg:set(Txn, Path, Value) end
+          action = fun(J, Path, Value) -> set_config(J, Path, Value) end
+         },
+     #cmd{node_type = leaf,
+          node = "commit",
+          desc = "Commit current changes",
+          action = fun(J, _, _) -> commit_config(J) end
          },
      #cmd{node_type = leaf,
           node = "exit",
@@ -164,6 +172,22 @@ enter_config_mode(#example_cli{} = J) ->
     Txn = cfg:transaction(),
     {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
 
+set_config(#example_cli{user_txn = Txn} = J, Path, Value) ->
+    case cfg:set(Txn, Path, Value) of
+        {ok, UpdatedTxn} ->
+            {ok, "ok\r\n", J#example_cli{user_txn = UpdatedTxn}};
+        {error, Reason} ->
+            {ok, Reason ++ "\r\n", J}
+    end.
+
+commit_config(#example_cli{user_txn = Txn} = J) ->
+    case cfg:commit(Txn) of
+        ok ->
+            {ok, "ok\r\n", J};
+        {error, Reason} ->
+            {ok, Reason ++ "\r\n", J}
+    end.
+
 exit_config_mode(#example_cli{user_txn = Txn} = J) ->
     cfg:exit_transaction(Txn),
     {ok, "", J#example_cli{mode = operational, user_txn = undefined}}.
@@ -175,7 +199,7 @@ show_interface_status(#example_cli{} = J, _Item) ->
     {ok, "Interface statuses\r\n", J}.
 
 show_operational(#example_cli{user_txn = _Txn}, Item) ->
-    io:format("Executing show operational ~p~n",[Item]),
+    ?DBG("Executing show operational ~p~n",[Item]),
     {ok, "Operational statuses\r\n"}.
 
 
@@ -201,7 +225,7 @@ show_operational(#example_cli{user_txn = _Txn}, Item) ->
 %%    we can and prompt the user with the possible matches
 
 expand_cmd(Str, Menu, J) ->
-    %% io:format("match_cmd ~p~n",[Str]),
+    %% ?DBG("match_cmd ~p~n",[Str]),
 
     %% Use the library function provided in cli.erl to take care of
     %% the expansion.
@@ -220,7 +244,7 @@ execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
             Action = action(hd(Cmd)),
             case catch Action(J, Leaf, Value) of
                 {'EXIT', Reason} ->
-                    io:format("Executing configuration exit ~p~n",[Reason]),
+                    ?DBG("Executing configuration exit ~p~n",[Reason]),
                     {ok, "Error executing command", J};
                 {ok, Result} ->
                     {ok, Result, J};
