@@ -30,7 +30,9 @@ cfg_schema() ->
     [
      cfg:container("interface", "Interface configuration", fun() -> interface_schema() end),
      cfg:container("server", "Server configuration",
-                   fun() -> server_list_schema() end)
+                   fun() -> server_list_schema() end),
+     cfg:container("client", "Client configuration",
+                   fun() -> client_list_schema() end)
     ].
 
 %%%===================================================================
@@ -55,3 +57,15 @@ server_schema() ->
     cfg:leaf( "port", "Listen port", inet_port)
    ].
 
+client_list_schema() ->
+    [
+     cfg:list("clients", "Client list", ["host", "port"],
+              fun() -> client_schema() end, [])
+    ].
+
+client_schema() ->
+   [
+    cfg:leaf( "name", "Server name", string),
+    cfg:leaf( "host", "Server hostname", ip_addr),
+    cfg:leaf( "port", "Server port", inet_port)
+   ].
