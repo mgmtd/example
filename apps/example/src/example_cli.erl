@@ -85,13 +85,13 @@ operational_menu() ->
                 end,
        children => fun() -> operational_show_menu() end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "configure",
        desc => "Enter configuration mode",
        action => fun(J1, _, _) -> enter_config_mode(J1) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "exit",
        desc => "Close session",
@@ -100,26 +100,26 @@ operational_menu() ->
     ].
 
 operational_show_menu() ->
-    [#{rectype => cmd,
+    [#{rec_type => cmd,
        node_type => leaf,
        name => "configuration",
        desc => "Show current configuration",
        children => fun() -> example:cfg_schema() end,
        action => fun(J1, Item, _) -> show_status(J1, Item) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "status",
        desc => "Status summary",
        action => fun(J1, Item, _) -> show_status(J1, Item) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "sockets",
        desc => "Open sockets",
        action => fun(J, Item, _) -> show_status(J, Item) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "interface",
        desc => "Interface status",
@@ -128,12 +128,12 @@ operational_show_menu() ->
     ].
 
 configuration_menu() ->
-    [#{rectype => cmd,
+    [#{rec_type => cmd,
        node_type => container,
        name => "show",
        desc => "Show configuration",
        children => fun() ->
-                           [#{node_type => pipe_cmd,
+                           [#{node_type => container,
                               rec_type => pipe_cmd,
                               name => "|",
                               desc => "Modify output",
@@ -142,20 +142,20 @@ configuration_menu() ->
                    end,
        action => fun(J, Path, _) -> show_config(J, Path) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => container,
        name => "set",
        desc => "Set a configuration parameter",
        children => fun() -> example:cfg_schema() end,
        action => fun(J, Path, Value) -> set_config(J, Path, Value) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "commit",
        desc => "Commit current changes",
        action => fun(J, _, _) -> commit_config(J) end
       },
-     #{rectype => cmd,
+     #{rec_type => cmd,
        node_type => leaf,
        name => "exit",
        desc => "Exit configuration mode",
