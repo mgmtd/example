@@ -24,16 +24,6 @@
          user_txn             % Transaction store for command sequences that need one
         }).
 
-%% Record for a command node sitting at the root of the tree
--record(cmd,
-        {
-         node_type = leaf,
-         node,
-         desc,
-         children,
-         action
-        }).
-
 %%--------------------------------------------------------------------
 %% CLI behaviour mandatory callbacks
 %%--------------------------------------------------------------------
@@ -60,12 +50,12 @@ prompt(#example_cli{mode = Mode}) ->
 
 
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], cli:format_menu(operational_menu(), cmd_accessors()), J};
+    {no, [], cli:format_menu(operational_menu()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% ?DBG("expand ~p~n",[Chars]),
     expand_cmd(Chars, operational_menu(), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], cli:format_menu(configuration_menu(), cmd_accessors()), J};
+    {no, [], cli:format_menu(configuration_menu()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     ?DBG("expand config ~p~n",[Chars]),
     expand_cmd(Chars, configuration_menu(), J).
@@ -86,83 +76,91 @@ execute(CmdStr, #example_cli{mode = configuration} = J) ->
 %% of an entire command
 %%--------------------------------------------------------------------
 operational_menu() ->
-    [#cmd{node_type = container,
-          node = "show",
-          desc = "Show commands",
-          action = fun(J, Item, _Value) ->
-                           show_operational(J, Item)
-                   end,
-          children = fun() -> operational_show_menu() end
-         },
-     #cmd{node_type = leaf,
-          node = "configure",
-          desc = "Enter configuration mode",
-          action = fun(J1, _, _) -> enter_config_mode(J1) end
-         },
-     #cmd{node_type = leaf,
-          node = "exit",
-          desc = "Close session",
-          action = fun(J1) -> enter_config_mode(J1) end
-         }
+    [#{rec_type => cmd,
+       node_type => container,
+       name => "show",
+       desc => "Show commands",
+       action => fun(J, Item, _Value) ->
+                        show_operational(J, Item)
+                end,
+       children => fun() -> operational_show_menu() end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "configure",
+       desc => "Enter configuration mode",
+       action => fun(J1, _, _) -> enter_config_mode(J1) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "exit",
+       desc => "Close session",
+       action => fun(J1) -> enter_config_mode(J1) end
+      }
     ].
 
 operational_show_menu() ->
-    [#cmd{node_type = leaf,
-          node = "configuration",
-          desc = "Show current configuration",
-          children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                              [{accessors,  cfg_accessors()},
-                               {pipe_cmds, []}]),
-          action = fun(J1, Item, _) -> show_status(J1, Item) end
-         },
-     #cmd{node_type = leaf,
-          node = "status",
-          desc = "Status summary",
-          action = fun(J1, Item, _) -> show_status(J1, Item) end
-         },
-     #cmd{node_type = leaf,
-          node = "sockets",
-          desc = "Open sockets",
-          action = fun(J, Item, _) -> show_status(J, Item) end
-         },
-     #cmd{node_type = leaf,
-          node = "interface",
-          desc = "Interface status",
-          action = fun(J, Item, _) -> show_interface_status(J, Item) end
-         }
+    [#{rectype => cmd,
+       node_type => leaf,
+       name => "configuration",
+       desc => "Show current configuration",
+       children => fun() -> example:cfg_schema() end,
+       action => fun(J1, Item, _) -> show_status(J1, Item) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "status",
+       desc => "Status summary",
+       action => fun(J1, Item, _) -> show_status(J1, Item) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "sockets",
+       desc => "Open sockets",
+       action => fun(J, Item, _) -> show_status(J, Item) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "interface",
+       desc => "Interface status",
+       action => fun(J, Item, _) -> show_interface_status(J, Item) end
+      }
     ].
 
 configuration_menu() ->
-    [#cmd{node_type = container,
-          node = "show",
-          desc = "Show configuration",
-          children = cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                              [{accessors, cfg_accessors()},
-                               {pipe_cmds, []}]),
-          action = fun(Txn, Path, Value) -> cfg:show(Txn, Path, Value) end
-         },
-     #cmd{node_type = container,
-          node = "set",
-          desc = "Set a configuration parameter",
-          children =
-              cli:sequence(
-                [cli:tree(fun(_Txn) -> example:cfg_schema() end,
-                          [{accessors,  cfg_accessors()},
-                           {add_list_items, true}]),
-                 cli:value(fun(Txn, Leaf) -> cfg:value_schema(Txn, Leaf) end)
-                ]),
-          action = fun(J, Path, Value) -> set_config(J, Path, Value) end
-         },
-     #cmd{node_type = leaf,
-          node = "commit",
-          desc = "Commit current changes",
-          action = fun(J, _, _) -> commit_config(J) end
-         },
-     #cmd{node_type = leaf,
-          node = "exit",
-          desc = "Exit configuration mode",
-          action = fun(J1, _, _) -> exit_config_mode(J1) end
-         }
+    [#{rectype => cmd,
+       node_type => container,
+       name => "show",
+       desc => "Show configuration",
+       children => fun() ->
+                           [#{node_type => pipe_cmd,
+                              rec_type => pipe_cmd,
+                              name => "|",
+                              desc => "Modify output",
+                              children => []} |
+                            example:cfg_schema()]
+                   end,
+       action => fun(J, Path, _) -> show_config(J, Path) end
+      },
+     #{rectype => cmd,
+       node_type => container,
+       name => "set",
+       desc => "Set a configuration parameter",
+       children => fun() -> example:cfg_schema() end,
+       action => fun(J, Path, Value) -> set_config(J, Path, Value) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "commit",
+       desc => "Commit current changes",
+       action => fun(J, _, _) -> commit_config(J) end
+      },
+     #{rectype => cmd,
+       node_type => leaf,
+       name => "exit",
+       desc => "Exit configuration mode",
+       action => fun(J1, _, _) -> exit_config_mode(J1) end
+      }
     ].
 
 %%--------------------------------------------------------------------
@@ -179,6 +177,12 @@ set_config(#example_cli{user_txn = Txn} = J, Path, Value) ->
         {error, Reason} ->
             {ok, Reason ++ "\r\n", J}
     end.
+
+show_config(#example_cli{user_txn = Txn} = J, Path0) ->
+    Path = if Path0 == undefined -> []; true -> Path0 end,
+    {ok, ConfigTree} = cfg:show(Txn, Path),
+    Str = cli:format_simple_tree(ConfigTree),
+    {ok, Str, J}.
 
 commit_config(#example_cli{user_txn = Txn} = J) ->
     case cfg:commit(Txn) of
@@ -229,7 +233,7 @@ expand_cmd(Str, Menu, J) ->
 
     %% Use the library function provided in cli.erl to take care of
     %% the expansion.
-    case cli:expand(Str, Menu, cmd_accessors(), J#example_cli.user_txn) of
+    case cli:expand(Str, Menu, J#example_cli.user_txn) of
         no ->
             {no, [], [], J};
         {yes, Extra, MenuItems} ->
@@ -237,11 +241,11 @@ expand_cmd(Str, Menu, J) ->
     end.
 
 execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
-    case cli:lookup(CmdStr, Menu, cmd_accessors(), Txn) of
+    case cli:lookup(CmdStr, Menu, Txn) of
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
-            Action = action(hd(Cmd)),
+            #{action := Action} = lists:last(Cmd),
             case catch Action(J, Leaf, Value) of
                 {'EXIT', Reason} ->
                     ?DBG("Executing configuration exit ~p~n",[Reason]),
@@ -254,26 +258,6 @@ execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
                     {ok, Result, J#example_cli{user_txn = UserTxn}}
             end
     end.
-
-%% Set up the structure needed for the generic expander to know enough about our #cmd{}s
-cmd_accessors() ->
-    cli:accessors(fun name/1, fun desc/1, fun children/1, fun action/1, fun node_type/1).
-
-name(#cmd{node = Name}) -> Name.
-
-desc(#cmd{desc = Desc}) -> Desc.
-
-children(#cmd{children = Children}) -> Children.
-
-node_type(#cmd{node_type = Type}) -> Type.
-
-action(#cmd{action = Action}) -> Action.
-
-cfg_accessors() ->
-    cli:accessors(fun cfg:name/1, fun cfg:desc/1, fun cfg:children/3,
-                  fun cfg:action/1, fun cfg:node_type/1,
-                  fun cfg:list_key_names/1, fun cfg:list_key_values/1,
-                  fun cfg:set_list_key_values/2).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
