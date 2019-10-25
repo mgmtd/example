@@ -104,7 +104,7 @@ operational_show_menu() ->
        node_type => leaf,
        name => "configuration",
        desc => "Show current configuration",
-       children => fun() -> example:cfg_schema() end,
+       children => fun(Path) -> cfg_schema:lookup(Path) end,
        action => fun(J1, Item, _) -> show_status(J1, Item) end
       },
      #{rec_type => cmd,
@@ -132,13 +132,13 @@ configuration_menu() ->
        node_type => container,
        name => "show",
        desc => "Show configuration",
-       children => fun() ->
+       children => fun(Path) ->
                            [#{node_type => container,
                               rec_type => pipe_cmd,
                               name => "|",
                               desc => "Modify output",
                               children => []} |
-                            example:cfg_schema()]
+                            cfg_schema:children(Path)]
                    end,
        action => fun(J, Path, _) -> show_config(J, Path) end
       },
@@ -146,7 +146,7 @@ configuration_menu() ->
        node_type => container,
        name => "set",
        desc => "Set a configuration parameter",
-       children => fun() -> example:cfg_schema() end,
+       children => fun(Path) -> cfg_schema:children(Path) end,
        action => fun(J, Path, Value) -> set_config(J, Path, Value) end
       },
      #{rec_type => cmd,
