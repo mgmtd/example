@@ -41,7 +41,7 @@ cfg_schema() ->
 
 interface_schema() ->
     [
-     cfg:leaf( "speed", "Interface speed", {enum, [{"1GbE", "1 Gigabit/s Ethernet"}]})
+     cfg:leaf( "speed", "Interface speed", {enum, [{"1GbE", "1 Gigabit/s Ethernet"}]}, "1GbE")
     ].
 
 server_list_schema() ->
@@ -52,9 +52,9 @@ server_list_schema() ->
 
 server_schema() ->
    [
-    cfg:leaf( "name", "Server name", string),
-    cfg:leaf( "host", "Server hostname", ip_addr),
-    cfg:leaf( "port", "Listen port", inet_port)
+    cfg:leaf( "name", "Server name", string, ""),
+    cfg:leaf( "host", "Server hostname", ip_addr, "127.0.0.1"),
+    cfg:leaf( "port", "Listen port", inet_port, 80)
    ].
 
 client_list_schema() ->
@@ -65,7 +65,7 @@ client_list_schema() ->
 
 client_schema() ->
    [
-    cfg:leaf( "name", "Server name", string),
-    cfg:leaf( "host", "Server hostname", ip_addr),
-    cfg:leaf( "port", "Server port", inet_port)
+    cfg:leaf( "name", "Server name", string, ""),
+    cfg:leaf( "host", "Server hostname", ip_addr, "127.0.0.1"),
+    cfg:leaf( "port", "Server port", inet_port, 8080)
    ].

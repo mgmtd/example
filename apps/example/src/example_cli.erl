@@ -57,7 +57,7 @@ expand(Chars, #example_cli{mode = operational} = J) ->
 expand([], #example_cli{mode = configuration} = J) ->
     {no, [], cli:format_menu(configuration_menu()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
-    ?DBG("expand config ~p~n",[Chars]),
+    %% ?DBG("expand config ~p~n",[Chars]),
     expand_cmd(Chars, configuration_menu(), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
@@ -104,7 +104,7 @@ operational_show_menu() ->
        node_type => leaf,
        name => "configuration",
        desc => "Show current configuration",
-       children => fun(Path) -> cfg_schema:lookup(Path) end,
+       children => fun(Path) -> cfg_schema:children(Path) end,
        action => fun(J1, Item, _) -> show_status(J1, Item) end
       },
      #{rec_type => cmd,

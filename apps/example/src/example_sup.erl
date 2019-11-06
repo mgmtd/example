@@ -35,7 +35,14 @@ init([]) ->
     Child = #{id => ?MODULE,
               start => {example_server, start_link, []},
               restart => permanent},
-    {ok, {SupFlags, [Child]} }.
+    Sup = #{id => example_server_sup,
+            start => {example_server_sup, start_link, []},
+            type => supervisor,
+            restart => permanent},
+    Child2 = #{id => example_manager,
+              start => {example_manager, start_link, [example_server_sup]},
+              restart => permanent},
+    {ok, {SupFlags, [Child, Sup, Child2]} }.
 
 %%====================================================================
 %% Internal functions

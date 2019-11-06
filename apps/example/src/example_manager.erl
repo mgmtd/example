@@ -1,17 +1,19 @@
 %%%-------------------------------------------------------------------
 %%% @author Sean Hinde <sean@Seans-MacBook.local>
 %%% @copyright (C) 2019, Sean Hinde
-%%% @doc Top level gen server for example application
+%%% @doc Example of subscribing to configuration change events to start
+%%% stop / reconfigure services.
 %%%
+%%% Expects a pre-existing supervisor it can use to start / stop children
 %%% @end
-%%% Created : 12 Sep 2019 by Sean Hinde <sean@Seans-MacBook.local>
+%%% Created :  1 Nov 2019 by Sean Hinde <sean@Seans-MacBook.local>
 %%%-------------------------------------------------------------------
--module(example_server).
+-module(example_manager).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -20,7 +22,9 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-                cli_proc     :: pid()
+                sup,
+                servers = [],
+                servers_cfg_ref
                }).
 
 %%%===================================================================
@@ -32,12 +36,12 @@
 %% Starts the server
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> {ok, Pid :: pid()} |
+-spec start_link(pid()) -> {ok, Pid :: pid()} |
                       {error, Error :: {already_started, pid()}} |
                       {error, Error :: term()} |
                       ignore.
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Supervisor) ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [Supervisor], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -54,10 +58,10 @@ start_link() ->
                               {ok, State :: term(), hibernate} |
                               {stop, Reason :: term()} |
                               ignore.
-init([]) ->
+init([Supervisor]) ->
     process_flag(trap_exit, true),
-    {ok, Pid} = example:init(),
-    {ok, #state{cli_proc = Pid}}.
+    self() ! finish_startup,
+    {ok, #state{sup = Supervisor}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -103,6 +107,15 @@ handle_cast(_Request, State) ->
                          {noreply, NewState :: term(), Timeout :: timeout()} |
                          {noreply, NewState :: term(), hibernate} |
                          {stop, Reason :: normal | term(), NewState :: term()}.
+handle_info(finish_startup, State) ->
+    {ok, Ref} = cfg:subscribe(["server", "servers"], self()),
+    {noreply, State#state{servers_cfg_ref = Ref}};
+handle_info({updated_config, Ref, _PrevConfig, NewConfig}, #state{servers_cfg_ref = Ref,
+                                                  sup = Sup} = State) ->
+    {Start, Stop}  = diff(State#state.servers, Config),
+    stop_children(Sup, Stop),
+    start_children(Sup, Start),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -149,3 +162,21 @@ format_status(_Opt, Status) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+diff(Current, Updated) ->
+    Stop = Current -- Updated,
+    Start = Updated -- Current,
+    {Start, Stop}.
+
+stop_children(Sup, Stop) ->
+    lists:foreach(fun(C) ->
+                          logger:notice("Stopping server ~p~n",[C]),
+                          example_server_sup:stop_child(Sup, C)
+                  end, Stop).
+
+
+start_children(Sup, Start) ->
+    lists:foreach(fun(C) ->
+                          {ok, ServerConf} = cfg:lookup(["server", "servers", C]),
+                          logger:notice("Starting server ~p~n",[C]),
+                          example_server_sup:start_child(Sup, C, ServerConf) end,
+                  Start).

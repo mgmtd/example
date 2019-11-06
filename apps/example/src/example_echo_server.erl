@@ -1,17 +1,17 @@
 %%%-------------------------------------------------------------------
 %%% @author Sean Hinde <sean@Seans-MacBook.local>
 %%% @copyright (C) 2019, Sean Hinde
-%%% @doc Top level gen server for example application
+%%% @doc Simple echo server
 %%%
 %%% @end
-%%% Created : 12 Sep 2019 by Sean Hinde <sean@Seans-MacBook.local>
+%%% Created :  4 Nov 2019 by Sean Hinde <sean@Seans-MacBook.local>
 %%%-------------------------------------------------------------------
--module(example_server).
+-module(example_echo_server).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -20,7 +20,8 @@
 -define(SERVER, ?MODULE).
 
 -record(state, {
-                cli_proc     :: pid()
+                socket,
+                port
                }).
 
 %%%===================================================================
@@ -32,12 +33,12 @@
 %% Starts the server
 %% @end
 %%--------------------------------------------------------------------
--spec start_link() -> {ok, Pid :: pid()} |
+-spec start_link(inet:port()) -> {ok, Pid :: pid()} |
                       {error, Error :: {already_started, pid()}} |
                       {error, Error :: term()} |
                       ignore.
-start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Config) ->
+    gen_server:start_link(?MODULE, [Config], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -54,10 +55,15 @@ start_link() ->
                               {ok, State :: term(), hibernate} |
                               {stop, Reason :: term()} |
                               ignore.
-init([]) ->
+init([Config]) ->
     process_flag(trap_exit, true),
-    {ok, Pid} = example:init(),
-    {ok, #state{cli_proc = Pid}}.
+    case proplists:get_value("port", Config) of
+        undefined ->
+            {ok, #state{}};
+        Port ->
+            erlang:send_after(1000, self(), {open_port, Port}),
+            {ok, #state{}}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -103,6 +109,14 @@ handle_cast(_Request, State) ->
                          {noreply, NewState :: term(), Timeout :: timeout()} |
                          {noreply, NewState :: term(), hibernate} |
                          {stop, Reason :: normal | term(), NewState :: term()}.
+handle_info({open_port, Port}, State) ->
+    case gen_udp:open(Port) of
+        {ok, Socket} ->
+            {noreply, State#state{socket = Socket, port = Port}};
+        {error, Err} ->
+            erlang:send_after(5000, {open_port, Port}),
+            {noreply, State#state{port = Port}}
+    end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
