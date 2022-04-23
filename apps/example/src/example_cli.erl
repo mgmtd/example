@@ -245,6 +245,10 @@ execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
         {error, Reason} ->
             {ok, Reason, J};
         {ok, Cmd, Leaf, Value} ->
+            %% Cmd here is the list of all items aong the path that are part of
+            %% the command. We execute the action associated with the last one
+            %% i.e. for "show configuration config path" we would execute
+            %% the action for the "configuration" item.
             #{action := Action} = lists:last(Cmd),
             case catch Action(J, Leaf, Value) of
                 {'EXIT', Reason} ->

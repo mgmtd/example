@@ -1,8 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% @author Sean Hinde <sean@Seans-MacBook.local>
 %%% @copyright (C) 2019, Sean Hinde
-%%% @doc Example of subscribing to configuration change events to start
-%%% stop / reconfigure services.
+%%% @doc Example of subscribing to configuration change events on list
+%%% items to start / stop / reconfigure processes based on membership
+%%% of the list.
 %%%
 %%% Expects a pre-existing supervisor it can use to start / stop children
 %%% @end
@@ -110,12 +111,13 @@ handle_cast(_Request, State) ->
 handle_info(finish_startup, State) ->
     {ok, Ref} = cfg:subscribe(["server", "servers"], self()),
     {noreply, State#state{servers_cfg_ref = Ref}};
-handle_info({updated_config, Ref, _PrevConfig, NewConfig}, #state{servers_cfg_ref = Ref,
+handle_info({updated_config, Ref, NewConfig}, #state{servers_cfg_ref = Ref,
                                                   sup = Sup} = State) ->
-    {Start, Stop}  = diff(State#state.servers, Config),
+    {Start, Stop}  = diff(State#state.servers, NewConfig),
+    io:format("Start ~p Stop ~p State ~p New ~p~n",[Start, Stop, State#state.servers, NewConfig]),
     stop_children(Sup, Stop),
     start_children(Sup, Start),
-    {noreply, State};
+    {noreply, State#state{servers = NewConfig}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
