@@ -24,7 +24,7 @@
 init() ->
     cfg:init(mnesia, [{db_path, "db"}]),
     cfg:load_schema(fun() -> cfg_schema() end),
-    {ok, _Pid} = cli:open("/var/tmp/example.socket", example_cli).
+    {ok, _Pid} = cli:open("/var/tmp/mgmtd.cli.socket", example_cli).
 
 cfg_schema() ->
     [
