@@ -113,7 +113,7 @@ handle_info({open_port, Port}, State) ->
     case gen_udp:open(Port) of
         {ok, Socket} ->
             {noreply, State#state{socket = Socket, port = Port}};
-        {error, Err} ->
+        {error, _Err} ->
             erlang:send_after(5000, {open_port, Port}),
             {noreply, State#state{port = Port}}
     end;

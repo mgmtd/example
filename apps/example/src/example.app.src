@@ -6,8 +6,8 @@
   {applications,
    [kernel,
     stdlib,
-    cli,
-    cfg
+    ecli,
+    mgmtd
    ]},
   {env,[]},
   {modules, []},

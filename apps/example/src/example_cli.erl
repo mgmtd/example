@@ -8,21 +8,16 @@
 %%%-------------------------------------------------------------------
 -module(example_cli).
 
--define(DBG(DATA), io:format("[~p:~p] ~p~n",[?MODULE, ?LINE, DATA])).
--define(DBG(FORMAT, ARGS), io:format("[~p:~p] " ++ FORMAT,[?MODULE, ?LINE] ++ ARGS)).
+-include_lib("ecli/include/ecli.hrl").
 
--export([init/0,
-         banner/1,
-         prompt/1,
-         expand/2,
-         execute/2
-        ]).
+-define(DBG(DATA), io:format("[~p:~p] ~p~n", [?MODULE, ?LINE, DATA])).
+-define(DBG(FORMAT, ARGS), io:format("[~p:~p] " ++ FORMAT, [?MODULE, ?LINE] ++ ARGS)).
+
+-export([init/0, banner/1, prompt/1, expand/2, execute/2]).
 
 -record(example_cli,
-        {
-         mode = operational,
-         user_txn             % Transaction store for command sequences that need one
-        }).
+        {mode = operational,
+         user_txn}).             % Transaction store for command sequences that need one
 
 %%--------------------------------------------------------------------
 %% CLI behaviour mandatory callbacks
@@ -31,43 +26,42 @@ init() ->
     {ok, #example_cli{}}.
 
 banner(#example_cli{}) ->
-    {ok, "\r\nWelcome to the example system CLI\r\n
-Hit TAB, SPC or ? at any time to see available options\r\n\r\n"}.
+    {ok,
+     "\r\nWelcome to the example system CLI\r\n\nHit TAB, SPC or "
+     "? at any time to see available options\r\n\r\n"}.
 
 prompt(#example_cli{mode = Mode}) ->
-    Suffix = case Mode of
-                 operational ->
-                     "> ";
-                 configuration ->
-                     "# "
-             end,
+    Suffix =
+        case Mode of
+            operational ->
+                "> ";
+            configuration ->
+                "# "
+        end,
     case inet:gethostname() of
         {ok, Hostname} ->
-            {ok, Hostname ++  Suffix};
+            {ok, Hostname ++ Suffix};
         _ ->
             {ok, Suffix}
     end.
 
-
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], cli:format_menu(operational_menu()), J};
+    {no, [], ecli:format_menu(operational_menu()), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% ?DBG("expand ~p~n",[Chars]),
     expand_cmd(Chars, operational_menu(), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], cli:format_menu(configuration_menu()), J};
+    {no, [], ecli:format_menu(configuration_menu()), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     %% ?DBG("expand config ~p~n",[Chars]),
     expand_cmd(Chars, configuration_menu(), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
-    ?DBG("Executing operational Command ~p~n",[CmdStr]),
+    ?DBG("Executing operational Command ~p~n", [CmdStr]),
     execute_cmd(CmdStr, operational_menu(), J);
 execute(CmdStr, #example_cli{mode = configuration} = J) ->
-    ?DBG("Executing configuration Command ~p~n",[CmdStr]),
+    ?DBG("Executing configuration Command ~p~n", [CmdStr]),
     execute_cmd(CmdStr, configuration_menu(), J).
-
-
 
 %%--------------------------------------------------------------------
 %% Menu definitions
@@ -76,102 +70,57 @@ execute(CmdStr, #example_cli{mode = configuration} = J) ->
 %% of an entire command
 %%--------------------------------------------------------------------
 operational_menu() ->
-    [#{role => cmd,
-       node_type => container,
-       name => "show",
-       desc => "Show commands",
-       action => fun(J, Item, _Value) ->
-                        show_operational(J, Item)
-                end,
-       children => fun() -> operational_show_menu() end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "configure",
-       desc => "Enter configuration mode",
-       action => fun(J1, _, _) -> enter_config_mode(J1) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "exit",
-       desc => "Close session",
-       action => fun(J1) -> enter_config_mode(J1) end
-      }
-    ].
+    [#cmd{name = "show",
+          desc = "Show commands",
+          action = fun(J, Item) -> show_operational(J, Item) end,
+          children = fun() -> operational_show_menu() end},
+     #cmd{name = "configure",
+          desc = "Enter configuration mode",
+          action = fun(J1, _) -> enter_config_mode(J1) end},
+     #cmd{name = "exit",
+          desc = "Close session",
+          action = fun(J1) -> enter_config_mode(J1) end}].
 
 operational_show_menu() ->
-    [#{role => cmd,
-       node_type => leaf,
-       name => "configuration",
-       desc => "Show current configuration",
-       children => fun(Path) -> cfg_schema:children(Path) end,
-       action => fun(J1, Item, _) -> show_status(J1, Item) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "status",
-       desc => "Status summary",
-       action => fun(J1, Item, _) -> show_status(J1, Item) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "sockets",
-       desc => "Open sockets",
-       action => fun(J, Item, _) -> show_status(J, Item) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "interface",
-       desc => "Interface status",
-       action => fun(J, Item, _) -> show_interface_status(J, Item) end
-      }
-    ].
+    [#cmd{name = "configuration",
+          desc = "Show current configuration",
+          children = fun(Path) -> mgmtd:schema_children(Path, show) end,
+          action = fun(S, Path) -> show_config(S, Path) end},
+     #cmd{name = "status",
+          desc = "Status summary",
+          action = fun(J1, Item) -> show_status(J1, Item) end},
+     #cmd{name = "sockets",
+          desc = "Open sockets",
+          action = fun(J, Item) -> show_status(J, Item) end},
+     #cmd{name = "interface",
+          desc = "Interface status",
+          action = fun(J, Item) -> show_interface_status(J, Item) end}].
 
 configuration_menu() ->
-    [#{role => cmd,
-       node_type => container,
-       name => "show",
-       desc => "Show configuration",
-       children => fun(Path) ->
-                           [#{node_type => container,
-                              role => pipe_cmd,
-                              name => "|",
-                              desc => "Modify output",
-                              children => []} |
-                            cfg_schema:children(Path)]
-                   end,
-       action => fun(J, Path, _) -> show_config(J, Path) end
-      },
-     #{role => cmd,
-       node_type => container,
-       name => "set",
-       desc => "Set a configuration parameter",
-       children => fun(Path) -> cfg_schema:children(Path) end,
-       action => fun(J, Path, Value) -> set_config(J, Path, Value) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "commit",
-       desc => "Commit current changes",
-       action => fun(J, _, _) -> commit_config(J) end
-      },
-     #{role => cmd,
-       node_type => leaf,
-       name => "exit",
-       desc => "Exit configuration mode",
-       action => fun(J1, _, _) -> exit_config_mode(J1) end
-      }
-    ].
+    [#cmd{name = "show",
+          desc = "Show configuration",
+          children = fun(Path) -> mgmtd:schema_children(Path, show) end,
+          action = fun(J, Path) -> show_config(J, Path) end},
+     #cmd{name = "set",
+          desc = "Set a configuration parameter",
+          children = fun(Path) -> mgmtd:schema_children(Path, set) end,
+          action = fun(J, Path) -> set_config(J, Path) end},
+     #cmd{name = "commit",
+          desc = "Commit current changes",
+          action = fun(J, _) -> commit_config(J) end},
+     #cmd{name = "exit",
+          desc = "Exit configuration mode",
+          action = fun(J1, _) -> exit_config_mode(J1) end}].
 
 %%--------------------------------------------------------------------
 %% Action implementations
 %%--------------------------------------------------------------------
 enter_config_mode(#example_cli{} = J) ->
-    Txn = cfg:transaction(),
+    Txn = mgmtd:txn_new(),
     {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
 
-set_config(#example_cli{user_txn = Txn} = J, Path, Value) ->
-    case cfg:set(Txn, Path, Value) of
+set_config(#example_cli{user_txn = Txn} = J, Path) ->
+    case mgmtd:txn_set(Txn, Path) of
         {ok, UpdatedTxn} ->
             {ok, "ok\r\n", J#example_cli{user_txn = UpdatedTxn}};
         {error, Reason} ->
@@ -179,13 +128,18 @@ set_config(#example_cli{user_txn = Txn} = J, Path, Value) ->
     end.
 
 show_config(#example_cli{user_txn = Txn} = J, Path0) ->
-    Path = if Path0 == undefined -> []; true -> Path0 end,
-    {ok, ConfigTree} = cfg:show(Txn, Path),
-    Str = cli:format_simple_tree(ConfigTree),
+    Path =
+        if Path0 == undefined ->
+               [];
+           true ->
+               Path0
+        end,
+    {ok, ConfigTree} = mgmtd:txn_show(Txn, Path),
+    Str = ecli:format_simple_tree(ConfigTree),
     {ok, Str, J}.
 
 commit_config(#example_cli{user_txn = Txn} = J) ->
-    case cfg:commit(Txn) of
+    case mgmtd:txn_commit(Txn) of
         ok ->
             {ok, "ok\r\n", J};
         {error, Reason} ->
@@ -193,7 +147,7 @@ commit_config(#example_cli{user_txn = Txn} = J) ->
     end.
 
 exit_config_mode(#example_cli{user_txn = Txn} = J) ->
-    cfg:exit_transaction(Txn),
+    mgmtd:txn_exit(Txn),
     {ok, "", J#example_cli{mode = operational, user_txn = undefined}}.
 
 show_status(#example_cli{} = J, _Item) ->
@@ -203,9 +157,8 @@ show_interface_status(#example_cli{} = J, _Item) ->
     {ok, "Interface statuses\r\n", J}.
 
 show_operational(#example_cli{user_txn = _Txn}, Item) ->
-    ?DBG("Executing show operational ~p~n",[Item]),
+    ?DBG("Executing show operational ~p~n", [Item]),
     {ok, "Operational statuses\r\n"}.
-
 
 %%--------------------------------------------------------------------
 %% Internal functions
@@ -230,10 +183,9 @@ show_operational(#example_cli{user_txn = _Txn}, Item) ->
 
 expand_cmd(Str, Menu, J) ->
     %% ?DBG("match_cmd ~p~n",[Str]),
-
     %% Use the library function provided in cli.erl to take care of
     %% the expansion.
-    case cli:expand(Str, Menu, J#example_cli.user_txn) of
+    case ecli:expand(Str, Menu, J#example_cli.user_txn) of
         no ->
             {no, [], [], J};
         {yes, Extra, MenuItems} ->
@@ -241,29 +193,34 @@ expand_cmd(Str, Menu, J) ->
     end.
 
 execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
-    case cli:lookup(CmdStr, Menu, Txn) of
+    case ecli:lookup(CmdStr, Menu, Txn) of
         {error, Reason} ->
             {ok, Reason, J};
-        {ok, Cmd, Leaf, Value} ->
+        {ok, Cmd, Leaf} ->
             %% Cmd here is the list of all items along the path that are part of
             %% the command. We execute the action associated with the last one
             %% i.e. for "show configuration config path" we would execute
             %% the action for the "configuration" item.
-            #{action := Action} = lists:last(Cmd),
-            case catch Action(J, Leaf, Value) of
-                {'EXIT', Reason} ->
-                    ?DBG("Executing configuration exit ~p~n",[Reason]),
-                    {ok, "Error executing command", J};
-                {ok, Result} ->
-                    {ok, Result, J};
-                {ok, Result, #example_cli{} = J1} ->
-                    {ok, Result, J1};
-                {ok, Result, UserTxn} ->
-                    {ok, Result, J#example_cli{user_txn = UserTxn}}
+            case lists:last(Cmd) of
+                #{action := Action} ->
+                    case catch Action(J, Leaf) of
+                        {'EXIT', Reason} ->
+                            ?DBG("Executing configuration exit ~p~n", [Reason]),
+                            {ok, "Error executing command", J};
+                        {ok, Result} ->
+                            {ok, Result, J};
+                        {ok, Result, #example_cli{} = J1} ->
+                            {ok, Result, J1};
+                        {ok, Result, UserTxn} ->
+                            {ok, Result, J#example_cli{user_txn = UserTxn}}
+                    end;
+                _ ->
+                    {ok, "Incomplete command", J}
             end
     end.
 
 -ifdef(TEST).
+
 -include_lib("eunit/include/eunit.hrl").
 
 full_expansion_top_level_test_() ->
@@ -279,12 +236,11 @@ full_expansion_multi_chars_top_level_test_() ->
 no_match_top_level_test_() ->
     {ok, J} = init(),
     Result = expand("x", J),
-    ?_assertMatch( {no, "", [], #example_cli{mode = operational}}, Result).
+    ?_assertMatch({no, "", [], #example_cli{mode = operational}}, Result).
 
 add_space_top_level_test_() ->
     {ok, J} = init(),
     Result = expand("show", J),
-    ?_assertMatch({yes, " ",  ["\r\n", _], #example_cli{mode = operational}}, Result).
-
+    ?_assertMatch({yes, " ", ["\r\n", _], #example_cli{mode = operational}}, Result).
 
 -endif.

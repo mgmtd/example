@@ -4,7 +4,7 @@
 %%% @doc Top level gen server for example application
 %%%   Each system embedding the config / cli system needs to start and
 %%%   supervise the cli socket owning process, whcih can be started
-%%%   with cli:open(UnixDomainSocketPath, CallbackModeule) -> {ok, Pid}
+%%%   with ecli:open(UnixDomainSocketPath, CallbackModeule) -> {ok, Pid}
 %%%
 %%%   This gen server provides an example of how not to do it :)
 %%% @end

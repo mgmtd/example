@@ -1,1 +1,12 @@
-[].
+[{<<"ecli">>,
+  {git,"https://github.com/mgmtd/ecli.git",
+       {ref,"3a2276777ee89d1bf22020a4b728c2224ebc8b00"}},
+  0},
+ {<<"jsx">>,
+  {git,"https://github.com/talentdeficit/jsx.git",
+       {ref,"3074d4865b3385a050badf7828ad31490d860df5"}},
+  1},
+ {<<"mgmtd">>,
+  {git,"https://github.com/mgmtd/mgmtd.git",
+       {ref,"069c538f929c72e7f11e95d379139d8dc7a16fd6"}},
+  0}].

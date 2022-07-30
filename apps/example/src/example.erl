@@ -12,6 +12,8 @@
 -export([init/0]).
 -export([cfg_schema/0]).
 
+-include_lib("mgmtd/include/mgmtd.hrl").
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -22,50 +24,66 @@
 %% @end
 %%--------------------------------------------------------------------
 init() ->
-    cfg:init(mnesia, [{db_path, "db"}]),
-    cfg:load_schema(fun() -> cfg_schema() end),
-    {ok, _Pid} = cli:open("/var/tmp/mgmtd.cli.socket", example_cli).
+    mgmtd_cfg_db:init("db", [{backend, mnesia}]),
+    mgmtd:load_function_schema(fun() -> cfg_schema() end),
+    {ok, _Pid} = ecli:open("/var/tmp/mgmtd.cli.socket", example_cli).
 
 cfg_schema() ->
-    [
-     cfg:container("interface", "Interface configuration", fun() -> interface_schema() end),
-     cfg:container("server", "Server configuration",
-                   fun() -> server_list_schema() end),
-     cfg:container("client", "Client configuration",
-                   fun() -> client_list_schema() end)
-    ].
+    [#container{name = "interface",
+                desc = "Interface configuration",
+                children = fun() -> interface_schema() end},
+     #container{name = "server",
+                desc = "Server configuration",
+                children = fun() -> server_list_schema() end},
+     #container{name = "client",
+                desc = "Client configuration",
+                children = fun() -> client_list_schema() end}].
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
 interface_schema() ->
-    [
-     cfg:leaf( "speed", "Interface speed", {enum, [{"1GbE", "1 Gigabit/s Ethernet"}]}, "1GbE")
-    ].
+    [#leaf{name = "speed",
+           desc = "Interface speed",
+           type = {enum, [{"1GbE", "1 Gigabit/s Ethernet"}]},
+           default = "1GbE"}].
 
 server_list_schema() ->
-    [
-     cfg:list("servers", "Server list", ["name"],
-              fun() -> server_schema() end, [])
-    ].
+    [#list{name = "servers",
+           desc = "Server list",
+           key_names = ["name"],
+           data_callback = mgmtd,
+           children = fun() -> server_schema() end}].
 
 server_schema() ->
-   [
-    cfg:leaf( "name", "Server name", string, ""),
-    cfg:leaf( "host", "Server hostname", ip_addr, "127.0.0.1"),
-    cfg:leaf( "port", "Listen port", inet_port, 80)
-   ].
+    [#leaf{name = "name",
+           desc = "Server name",
+           type = string},
+     #leaf{name = "host",
+           desc = "Server hostname",
+           type = 'inet:ip-address',
+           default = "127.0.0.1"},
+     #leaf{name = "port",
+           desc = "Listen port",
+           type = 'inet:port-number',
+           default = 80}].
 
 client_list_schema() ->
-    [
-     cfg:list("clients", "Client list", ["host", "port"],
-              fun() -> client_schema() end, [])
-    ].
+    [#list{name = "clients",
+           desc = "Client list",
+           key_names = ["host", "port"],
+           children = fun() -> client_schema() end}].
 
 client_schema() ->
-   [
-    cfg:leaf( "name", "Server name", string, ""),
-    cfg:leaf( "host", "Server hostname", ip_addr, "127.0.0.1"),
-    cfg:leaf( "port", "Server port", inet_port, 8080)
-   ].
+    [#leaf{name = "name",
+           desc = "Server name",
+           type = string},
+     #leaf{name = "host",
+           desc = "Server hostname",
+           type = 'inet:ip-address',
+           default = "127.0.0.1"},
+     #leaf{name = "port",
+           desc = "Server port",
+           type = 'inet:port-number',
+           default = 8080}].

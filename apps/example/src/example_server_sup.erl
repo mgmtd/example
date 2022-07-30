@@ -35,7 +35,7 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-start_child(Sup, Id, Args) ->
+start_child(_Sup, Id, Args) ->
     Child = child(Id, Args),
     supervisor:start_child(?SERVER, Child).
 

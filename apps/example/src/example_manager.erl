@@ -109,7 +109,7 @@ handle_cast(_Request, State) ->
                          {noreply, NewState :: term(), hibernate} |
                          {stop, Reason :: normal | term(), NewState :: term()}.
 handle_info(finish_startup, State) ->
-    {ok, Ref} = cfg:subscribe(["server", "servers"], self()),
+    {ok, Ref} = mgmtd:subscribe(["server", "servers"], self()),
     {noreply, State#state{servers_cfg_ref = Ref}};
 handle_info({updated_config, Ref, NewConfig}, #state{servers_cfg_ref = Ref,
                                                   sup = Sup} = State) ->
@@ -178,7 +178,7 @@ stop_children(Sup, Stop) ->
 
 start_children(Sup, Start) ->
     lists:foreach(fun(C) ->
-                          {ok, ServerConf} = cfg:lookup(["server", "servers", C]),
+                          {ok, ServerConf} = mgmtd:lookup(["server", "servers", C]),
                           logger:notice("Starting server ~p~n",[C]),
                           example_server_sup:start_child(Sup, C, ServerConf) end,
                   Start).
