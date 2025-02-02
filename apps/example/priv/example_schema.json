@@ -1,0 +1,96 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "interface-json": {
+            "type": "object",
+            "additionalProperties": false,
+            "title": "Interface configuration",
+            "description": "Interface configuration",
+            "properties": {
+                "speed": {
+                    "desc": "Interface speed",
+                    "type": "string",
+                    "enum": [
+                        "1Gbe"
+                    ]
+                }
+            }
+        },
+        "server-json": {
+            "type": "object",
+            "additionalProperties": false,
+            "title": "Server configuration",
+            "description": "Server configuration",
+            "properties": {
+                "servers": {
+                    "description": "Server list",
+                    "type": "array",
+                    "default": [],
+                    "keys": [
+                        "name"
+                    ],
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name"
+                        ],
+                        "properties": {
+                            "name": {
+                                "desc": "Server name",
+                                "type": "string"
+                            },
+                            "host": {
+                                "desc": "Server hostname",
+                                "type": "string"
+                            },
+                            "port": {
+                                "desc": "Listen port",
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "client-json": {
+            "type": "object",
+            "additionalProperties": false,
+            "title": "Client configuration",
+            "description": "Client configuration",
+            "properties": {
+                "clients": {
+                    "description": "Client list",
+                    "type": "array",
+                    "default": [],
+                    "keys": [
+                        "host",
+                        "port"
+                    ],
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "host",
+                            "port"
+                        ],
+                        "properties": {
+                            "name": {
+                                "desc": "Server name",
+                                "type": "string"
+                            },
+                            "host": {
+                                "desc": "Server hostname",
+                                "type": "string"
+                            },
+                            "port": {
+                                "desc": "Server port",
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

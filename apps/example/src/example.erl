@@ -26,6 +26,8 @@
 init() ->
     mgmtd_cfg_db:init("db", [{backend, mnesia}]),
     mgmtd:load_function_schema(fun() -> cfg_schema() end),
+    % mgmtd:load_json_schema("../mgmtd/test/aeternity_config_schema.json"),
+    mgmtd:load_json_schema("apps/example/priv/example_schema.json"),
     {ok, _Pid} = ecli:open("/var/tmp/mgmtd.cli.socket", example_cli).
 
 cfg_schema() ->
