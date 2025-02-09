@@ -13,7 +13,7 @@
 -define(DBG(DATA), io:format("[~p:~p] ~p~n", [?MODULE, ?LINE, DATA])).
 -define(DBG(FORMAT, ARGS), io:format("[~p:~p] " ++ FORMAT, [?MODULE, ?LINE] ++ ARGS)).
 
--export([init/0, banner/1, prompt/1, expand/2, execute/2]).
+-export([init/0, banner/1, prompt/1, mode_after_exit/1, expand/2, execute/2]).
 
 -record(example_cli,
         {mode = operational,
@@ -44,6 +44,12 @@ prompt(#example_cli{mode = Mode}) ->
         _ ->
             {ok, Suffix}
     end.
+
+mode_after_exit(#example_cli{mode = operational}) ->
+    stop;
+mode_after_exit(#example_cli{mode = configuration, user_txn = Txn} = J) ->
+    mgmtd:txn_exit(Txn),
+    J#example_cli{mode = operational, user_txn = undefined}.
 
 expand([], #example_cli{mode = operational} = J) ->
     {no, [], ecli:format_menu(operational_menu()), J};
