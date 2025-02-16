@@ -1,6 +1,6 @@
 [{<<"ecli">>,
   {git,"https://github.com/mgmtd/ecli.git",
-       {ref,"771a3de765361747df15c67d1d7de54722acba46"}},
+       {ref,"9f218acf680bb5263049b469651e93fbb2906e2c"}},
   0},
  {<<"jsx">>,
   {git,"https://github.com/talentdeficit/jsx.git",
@@ -8,5 +8,5 @@
   1},
  {<<"mgmtd">>,
   {git,"https://github.com/mgmtd/mgmtd.git",
-       {ref,"c03bcaecc02b28c32ba1d28d55801c97ed376b93"}},
+       {ref,"46f5e2e6c0663cf37369233319f2392b69909b40"}},
   0}].

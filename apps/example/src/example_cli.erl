@@ -111,6 +111,10 @@ configuration_menu() ->
           desc = "Set a configuration parameter",
           children = fun(Path) -> mgmtd:schema_children(Path, set) end,
           action = fun(J, Path) -> set_config(J, Path) end},
+     #cmd{name = "delete",
+          desc = "Delete a list item",
+          children = fun(Path) -> mgmtd:schema_children(Path, delete) end,
+          action = fun(J, Path) -> delete_config(J, Path) end},
      #cmd{name = "commit",
           desc = "Commit current changes",
           action = fun(J, _) -> commit_config(J) end},
@@ -126,9 +130,19 @@ enter_config_mode(#example_cli{} = J) ->
     {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
 
 set_config(#example_cli{user_txn = Txn} = J, Path) ->
+    %% io:format(user, "example_cli set path ~p~n",[Path]),
     case mgmtd:txn_set(Txn, Path) of
         {ok, UpdatedTxn} ->
-            {ok, "ok\r\n", J#example_cli{user_txn = UpdatedTxn}};
+            {ok, "updated\r\n", J#example_cli{user_txn = UpdatedTxn}};
+        {error, Reason} ->
+            {ok, Reason ++ "\r\n", J}
+    end.
+
+delete_config(#example_cli{user_txn = Txn} = J, Path) ->
+    %% io:format(user, "example_cli delete path ~p~n",[Path]),
+    case mgmtd:txn_delete(Txn, Path) of
+        {ok, UpdatedTxn} ->
+            {ok, "deleted\r\n", J#example_cli{user_txn = UpdatedTxn}};
         {error, Reason} ->
             {ok, Reason ++ "\r\n", J}
     end.
@@ -136,9 +150,9 @@ set_config(#example_cli{user_txn = Txn} = J, Path) ->
 show_config(#example_cli{user_txn = Txn} = J, Path0) ->
     Path =
         if Path0 == undefined ->
-               [];
+                [];
            true ->
-               Path0
+                Path0
         end,
     {ok, ConfigTree} = mgmtd:txn_show(Txn, Path),
     Str = ecli:format_simple_tree(ConfigTree),
@@ -146,8 +160,8 @@ show_config(#example_cli{user_txn = Txn} = J, Path0) ->
 
 commit_config(#example_cli{user_txn = Txn} = J) ->
     case mgmtd:txn_commit(Txn) of
-        ok ->
-            {ok, "ok\r\n", J};
+        {ok, Txn2} ->
+            {ok, "ok\r\n", J#example_cli{user_txn = Txn2}};
         {error, Reason} ->
             {ok, Reason ++ "\r\n", J}
     end.

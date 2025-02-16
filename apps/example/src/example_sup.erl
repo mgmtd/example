@@ -40,8 +40,8 @@ init([]) ->
             type => supervisor,
             restart => permanent},
     Child2 = #{id => example_manager,
-              start => {example_manager, start_link, [example_server_sup]},
-              restart => permanent},
+               start => {example_manager, start_link, [example_server_sup]},
+               restart => permanent},
     {ok, {SupFlags, [Child, Sup, Child2]} }.
 
 %%====================================================================

@@ -34,9 +34,9 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link(inet:port()) -> {ok, Pid :: pid()} |
-                      {error, Error :: {already_started, pid()}} |
-                      {error, Error :: term()} |
-                      ignore.
+          {error, Error :: {already_started, pid()}} |
+          {error, Error :: term()} |
+          ignore.
 start_link(Config) ->
     gen_server:start_link(?MODULE, [Config], []).
 
@@ -51,10 +51,10 @@ start_link(Config) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) -> {ok, State :: term()} |
-                              {ok, State :: term(), Timeout :: timeout()} |
-                              {ok, State :: term(), hibernate} |
-                              {stop, Reason :: term()} |
-                              ignore.
+          {ok, State :: term(), Timeout :: timeout()} |
+          {ok, State :: term(), hibernate} |
+          {stop, Reason :: term()} |
+          ignore.
 init([Config]) ->
     process_flag(trap_exit, true),
     case proplists:get_value("port", Config) of
@@ -72,14 +72,14 @@ init([Config]) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_call(Request :: term(), From :: {pid(), term()}, State :: term()) ->
-                         {reply, Reply :: term(), NewState :: term()} |
-                         {reply, Reply :: term(), NewState :: term(), Timeout :: timeout()} |
-                         {reply, Reply :: term(), NewState :: term(), hibernate} |
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
-                         {stop, Reason :: term(), NewState :: term()}.
+          {reply, Reply :: term(), NewState :: term()} |
+          {reply, Reply :: term(), NewState :: term(), Timeout :: timeout()} |
+          {reply, Reply :: term(), NewState :: term(), hibernate} |
+          {noreply, NewState :: term()} |
+          {noreply, NewState :: term(), Timeout :: timeout()} |
+          {noreply, NewState :: term(), hibernate} |
+          {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
+          {stop, Reason :: term(), NewState :: term()}.
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -91,10 +91,10 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_cast(Request :: term(), State :: term()) ->
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: term(), NewState :: term()}.
+          {noreply, NewState :: term()} |
+          {noreply, NewState :: term(), Timeout :: timeout()} |
+          {noreply, NewState :: term(), hibernate} |
+          {stop, Reason :: term(), NewState :: term()}.
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -105,10 +105,10 @@ handle_cast(_Request, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec handle_info(Info :: timeout() | term(), State :: term()) ->
-                         {noreply, NewState :: term()} |
-                         {noreply, NewState :: term(), Timeout :: timeout()} |
-                         {noreply, NewState :: term(), hibernate} |
-                         {stop, Reason :: normal | term(), NewState :: term()}.
+          {noreply, NewState :: term()} |
+          {noreply, NewState :: term(), Timeout :: timeout()} |
+          {noreply, NewState :: term(), hibernate} |
+          {stop, Reason :: normal | term(), NewState :: term()}.
 handle_info({open_port, Port}, State) ->
     case gen_udp:open(Port) of
         {ok, Socket} ->
@@ -143,7 +143,7 @@ terminate(_Reason, _State) ->
 -spec code_change(OldVsn :: term() | {down, term()},
                   State :: term(),
                   Extra :: term()) -> {ok, NewState :: term()} |
-                                      {error, Reason :: term()}.
+          {error, Reason :: term()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

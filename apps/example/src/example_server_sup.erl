@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author Sean Hinde <sean@Seans-MacBook.local>
 %%% @copyright (C) 2019, Sean Hinde
-%%% @doc 
+%%% @doc
 %%%
 %%% @end
 %%% Created :  4 Nov 2019 by Sean Hinde <sean@Seans-MacBook.local>
@@ -28,10 +28,10 @@
 %% @end
 %%--------------------------------------------------------------------
 -spec start_link() -> {ok, Pid :: pid()} |
-                      {error, {already_started, Pid :: pid()}} |
-                      {error, {shutdown, term()}} |
-                      {error, term()} |
-                      ignore.
+          {error, {already_started, Pid :: pid()}} |
+          {error, {shutdown, term()}} |
+          {error, term()} |
+          ignore.
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
@@ -56,9 +56,9 @@ stop_child(Sup, Id) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec init(Args :: term()) ->
-                  {ok, {SupFlags :: supervisor:sup_flags(),
-                        [ChildSpec :: supervisor:child_spec()]}} |
-                  ignore.
+          {ok, {SupFlags :: supervisor:sup_flags(),
+                [ChildSpec :: supervisor:child_spec()]}} |
+          ignore.
 init([]) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 1,
