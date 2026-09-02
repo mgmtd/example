@@ -1,12 +1,13 @@
-[{<<"ecli">>,
-  {git,"https://github.com/mgmtd/ecli.git",
-       {ref,"9f218acf680bb5263049b469651e93fbb2906e2c"}},
+{"1.2.0",
+[{<<"eqwalizer_support">>,
+  {git_subdir,"https://github.com/whatsapp/erlang-language-platform.git",
+              {ref,"3fd5f68d09256e4e1a0baf1771e8171dddc2cc5f"},
+              "eqwalizer/eqwalizer_support"},
   0},
- {<<"jsx">>,
-  {git,"https://github.com/talentdeficit/jsx.git",
-       {ref,"3074d4865b3385a050badf7828ad31490d860df5"}},
-  1},
- {<<"mgmtd">>,
-  {git,"https://github.com/mgmtd/mgmtd.git",
-       {ref,"46f5e2e6c0663cf37369233319f2392b69909b40"}},
-  0}].
+ {<<"json_polyfill">>,{pkg,<<"json_polyfill">>,<<"0.2.2">>},1}]}.
+[
+{pkg_hash,[
+ {<<"json_polyfill">>, <<"789016C5B87A043F12196C840480264E630B1955E2E28F124CD38DF7B0A95B25">>}]},
+{pkg_hash_ext,[
+ {<<"json_polyfill">>, <<"33CB73ADE53DF5967375817E64E8AF3C6BA35524B2F8B31EB94C265291E724D9">>}]}
+].

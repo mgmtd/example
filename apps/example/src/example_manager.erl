@@ -54,9 +54,9 @@ start_link(Supervisor) ->
 %% Initializes the server
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) -> {ok, State :: term()} |
-          {ok, State :: term(), Timeout :: timeout()} |
-          {ok, State :: term(), hibernate} |
+-spec init(Args :: term()) -> {ok, State :: #state{}} |
+          {ok, State :: #state{}, Timeout :: timeout()} |
+          {ok, State :: #state{}, hibernate} |
           {stop, Reason :: term()} |
           ignore.
 init([Supervisor]) ->
@@ -70,15 +70,15 @@ init([Supervisor]) ->
 %% Handling call messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_call(Request :: term(), From :: {pid(), term()}, State :: term()) ->
-          {reply, Reply :: term(), NewState :: term()} |
-          {reply, Reply :: term(), NewState :: term(), Timeout :: timeout()} |
-          {reply, Reply :: term(), NewState :: term(), hibernate} |
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
-          {stop, Reason :: term(), NewState :: term()}.
+-spec handle_call(Request :: term(), From :: {pid(), term()}, State :: #state{}) ->
+          {reply, Reply :: term(), NewState :: #state{}} |
+          {reply, Reply :: term(), NewState :: #state{}, Timeout :: timeout()} |
+          {reply, Reply :: term(), NewState :: #state{}, hibernate} |
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
+          {stop, Reason :: term(), NewState :: #state{}}.
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -89,11 +89,11 @@ handle_call(_Request, _From, State) ->
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_cast(Request :: term(), State :: term()) ->
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: term(), NewState :: term()}.
+-spec handle_cast(Request :: term(), State :: #state{}) ->
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: term(), NewState :: #state{}}.
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -103,11 +103,11 @@ handle_cast(_Request, State) ->
 %% Handling all non call/cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info :: timeout() | term(), State :: term()) ->
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: normal | term(), NewState :: term()}.
+-spec handle_info(Info :: timeout() | term(), State :: #state{}) ->
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: normal | term(), NewState :: #state{}}.
 handle_info(finish_startup, State) ->
     {ok, Ref} = mgmtd:subscribe(["server", "servers"], self()),
     {noreply, State#state{servers_cfg_ref = Ref}};
@@ -131,7 +131,7 @@ handle_info(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
-                State :: term()) -> any().
+                State :: #state{}) -> any().
 terminate(_Reason, _State) ->
     ok.
 
@@ -142,8 +142,8 @@ terminate(_Reason, _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn :: term() | {down, term()},
-                  State :: term(),
-                  Extra :: term()) -> {ok, NewState :: term()} |
+                  State :: #state{},
+                  Extra :: term()) -> {ok, NewState :: #state{}} |
           {error, Reason :: term()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -178,7 +178,23 @@ stop_children(Sup, Stop) ->
 
 start_children(Sup, Start) ->
     lists:foreach(fun(C) ->
-                          {ok, ServerConf} = mgmtd:lookup(["server", "servers", C]),
+                          Conf = server_conf(C),
                           logger:notice("Starting server ~p~n",[C]),
-                          example_server_sup:start_child(Sup, C, ServerConf) end,
-                  Start).
+                          example_server_sup:start_child(Sup, C, Conf)
+                  end, Start).
+
+server_conf(Key) ->
+    Port = case mgmtd:lookup(["server", "servers", Key, "port"]) of
+               {ok, P} -> P;
+               _ -> undefined
+           end,
+    Host = case mgmtd:lookup(["server", "servers", Key, "host"]) of
+               {ok, H} -> H;
+               _ -> undefined
+           end,
+    [{"name", key_name(Key)}, {"host", Host}, {"port", Port}].
+
+key_name({Name}) ->
+    Name;
+key_name(Key) ->
+    Key.

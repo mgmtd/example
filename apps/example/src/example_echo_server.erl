@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1]).
+-export([start_link/1, status/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -33,12 +33,18 @@
 %% Starts the server
 %% @end
 %%--------------------------------------------------------------------
--spec start_link(inet:port()) -> {ok, Pid :: pid()} |
+-spec start_link(inet:port_number()) -> {ok, Pid :: pid()} |
           {error, Error :: {already_started, pid()}} |
           {error, Error :: term()} |
           ignore.
 start_link(Config) ->
     gen_server:start_link(?MODULE, [Config], []).
+
+%% @doc Live listen state for operational `status servers`.
+-spec status(pid()) -> #{port => inet:port_number() | undefined,
+                         listening => boolean()}.
+status(Pid) ->
+    gen_server:call(Pid, status).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -50,9 +56,9 @@ start_link(Config) ->
 %% Initializes the server
 %% @end
 %%--------------------------------------------------------------------
--spec init(Args :: term()) -> {ok, State :: term()} |
-          {ok, State :: term(), Timeout :: timeout()} |
-          {ok, State :: term(), hibernate} |
+-spec init(Args :: term()) -> {ok, State :: #state{}} |
+          {ok, State :: #state{}, Timeout :: timeout()} |
+          {ok, State :: #state{}, hibernate} |
           {stop, Reason :: term()} |
           ignore.
 init([Config]) ->
@@ -62,7 +68,7 @@ init([Config]) ->
             {ok, #state{}};
         Port ->
             erlang:send_after(1000, self(), {open_port, Port}),
-            {ok, #state{}}
+            {ok, #state{port = Port}}
     end.
 
 %%--------------------------------------------------------------------
@@ -71,15 +77,17 @@ init([Config]) ->
 %% Handling call messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_call(Request :: term(), From :: {pid(), term()}, State :: term()) ->
-          {reply, Reply :: term(), NewState :: term()} |
-          {reply, Reply :: term(), NewState :: term(), Timeout :: timeout()} |
-          {reply, Reply :: term(), NewState :: term(), hibernate} |
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: term(), Reply :: term(), NewState :: term()} |
-          {stop, Reason :: term(), NewState :: term()}.
+-spec handle_call(Request :: term(), From :: {pid(), term()}, State :: #state{}) ->
+          {reply, Reply :: term(), NewState :: #state{}} |
+          {reply, Reply :: term(), NewState :: #state{}, Timeout :: timeout()} |
+          {reply, Reply :: term(), NewState :: #state{}, hibernate} |
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
+          {stop, Reason :: term(), NewState :: #state{}}.
+handle_call(status, _From, #state{socket = Socket, port = Port} = State) ->
+    {reply, #{port => Port, listening => Socket =/= undefined}, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -90,11 +98,11 @@ handle_call(_Request, _From, State) ->
 %% Handling cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_cast(Request :: term(), State :: term()) ->
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: term(), NewState :: term()}.
+-spec handle_cast(Request :: term(), State :: #state{}) ->
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: term(), NewState :: #state{}}.
 handle_cast(_Request, State) ->
     {noreply, State}.
 
@@ -104,11 +112,11 @@ handle_cast(_Request, State) ->
 %% Handling all non call/cast messages
 %% @end
 %%--------------------------------------------------------------------
--spec handle_info(Info :: timeout() | term(), State :: term()) ->
-          {noreply, NewState :: term()} |
-          {noreply, NewState :: term(), Timeout :: timeout()} |
-          {noreply, NewState :: term(), hibernate} |
-          {stop, Reason :: normal | term(), NewState :: term()}.
+-spec handle_info(Info :: timeout() | term(), State :: #state{}) ->
+          {noreply, NewState :: #state{}} |
+          {noreply, NewState :: #state{}, Timeout :: timeout()} |
+          {noreply, NewState :: #state{}, hibernate} |
+          {stop, Reason :: normal | term(), NewState :: #state{}}.
 handle_info({open_port, Port}, State) ->
     case gen_udp:open(Port) of
         {ok, Socket} ->
@@ -130,7 +138,7 @@ handle_info(_Info, State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
-                State :: term()) -> any().
+                State :: #state{}) -> any().
 terminate(_Reason, _State) ->
     ok.
 
@@ -141,8 +149,8 @@ terminate(_Reason, _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec code_change(OldVsn :: term() | {down, term()},
-                  State :: term(),
-                  Extra :: term()) -> {ok, NewState :: term()} |
+                  State :: #state{},
+                  Extra :: term()) -> {ok, NewState :: #state{}} |
           {error, Reason :: term()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

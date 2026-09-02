@@ -78,43 +78,38 @@ execute(CmdStr, #example_cli{mode = configuration} = J) ->
 operational_menu() ->
     [#cmd{name = "show",
           desc = "Show commands",
-          action = fun(J, Item) -> show_operational(J, Item) end,
-          children = fun() -> operational_show_menu() end},
+          action = fun show_operational/2,
+          children = fun operational_show_menu/0},
      #cmd{name = "configure",
           desc = "Enter configuration mode",
           action = fun(J1, _) -> enter_config_mode(J1) end},
      #cmd{name = "exit",
           desc = "Close session",
-          action = fun(J1) -> enter_config_mode(J1) end}].
+          action = fun enter_config_mode/1}].
 
 operational_show_menu() ->
     [#cmd{name = "configuration",
           desc = "Show current configuration",
-          children = fun(Path) -> mgmtd:schema_children(Path, show) end,
-          action = fun(S, Path) -> show_config(S, Path) end},
+          children = fun(Path) -> config_children(Path, show) end,
+          action = fun show_config/2},
      #cmd{name = "status",
-          desc = "Status summary",
-          action = fun(J1, Item) -> show_status(J1, Item) end},
-     #cmd{name = "sockets",
-          desc = "Open sockets",
-          action = fun(J, Item) -> show_status(J, Item) end},
-     #cmd{name = "interface",
-          desc = "Interface status",
-          action = fun(J, Item) -> show_interface_status(J, Item) end}].
+          desc = "Operational status",
+          children = fun oper_children/1,
+          action = fun show_oper/2}].
 
 configuration_menu() ->
     [#cmd{name = "show",
           desc = "Show configuration",
-          children = fun(Path) -> mgmtd:schema_children(Path, show) end,
-          action = fun(J, Path) -> show_config(J, Path) end},
+          children = fun(Path) -> config_children(Path, show) end,
+          action = fun show_config/2},
      #cmd{name = "set",
           desc = "Set a configuration parameter",
-          children = fun(Path) -> mgmtd:schema_children(Path, set) end,
-          action = fun(J, Path) -> set_config(J, Path) end},
+          children = fun(Path) -> config_children(Path, set) end,
+          action = fun set_config/2},
      #cmd{name = "delete",
           desc = "Delete a list item",
-          children = fun(Path) -> mgmtd:schema_children(Path, delete) end,
-          action = fun(J, Path) -> delete_config(J, Path) end},
+          children = fun(Path) -> config_children(Path, delete) end,
+          action = fun delete_config/2},
      #cmd{name = "commit",
           desc = "Commit current changes",
           action = fun(J, _) -> commit_config(J) end},
@@ -130,12 +125,11 @@ enter_config_mode(#example_cli{} = J) ->
     {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
 
 set_config(#example_cli{user_txn = Txn} = J, Path) ->
-    %% io:format(user, "example_cli set path ~p~n",[Path]),
     case mgmtd:txn_set(Txn, Path) of
         {ok, UpdatedTxn} ->
             {ok, "updated\r\n", J#example_cli{user_txn = UpdatedTxn}};
         {error, Reason} ->
-            {ok, Reason ++ "\r\n", J}
+            {ok, format_reason(Reason), J}
     end.
 
 delete_config(#example_cli{user_txn = Txn} = J, Path) ->
@@ -144,7 +138,7 @@ delete_config(#example_cli{user_txn = Txn} = J, Path) ->
         {ok, UpdatedTxn} ->
             {ok, "deleted\r\n", J#example_cli{user_txn = UpdatedTxn}};
         {error, Reason} ->
-            {ok, Reason ++ "\r\n", J}
+            {ok, format_reason(Reason), J}
     end.
 
 show_config(#example_cli{user_txn = Txn} = J, Path0) ->
@@ -163,26 +157,60 @@ commit_config(#example_cli{user_txn = Txn} = J) ->
         {ok, Txn2} ->
             {ok, "ok\r\n", J#example_cli{user_txn = Txn2}};
         {error, Reason} ->
-            {ok, Reason ++ "\r\n", J}
+            {ok, format_reason(Reason), J}
     end.
 
 exit_config_mode(#example_cli{user_txn = Txn} = J) ->
     mgmtd:txn_exit(Txn),
     {ok, "", J#example_cli{mode = operational, user_txn = undefined}}.
 
-show_status(#example_cli{} = J, _Item) ->
-    {ok, "Status description\r\n", J}.
-
-show_interface_status(#example_cli{} = J, _Item) ->
-    {ok, "Interface statuses\r\n", J}.
+show_oper(#example_cli{} = J, Path0) ->
+    Path = case Path0 of
+               [] -> oper_root();
+               undefined -> oper_root();
+               _ -> oper_root() ++ Path0
+           end,
+    case mgmtd:txn_show(undefined, Path) of
+        {ok, Tree} ->
+            {ok, ecli:format_simple_tree(Tree), J};
+        {error, Reason} ->
+            {ok, format_reason(Reason), J}
+    end.
 
 show_operational(#example_cli{user_txn = _Txn}, Item) ->
     ?DBG("Executing show operational ~p~n", [Item]),
     {ok, "Operational statuses\r\n"}.
 
+%% Configuration menus hide `config = false` nodes so `set` / `show
+%% configuration` do not offer operational data.
+config_children(Path, CmdType) ->
+    [C || C <- mgmtd:schema_children(Path, CmdType),
+          maps:get(config, C, true)].
+
+%% First level under `show status` is the operational `status` container.
+%% Deeper completion uses the schema maps' own children funs.
+oper_children(_Path) ->
+    mgmtd:schema_children(["status"], show).
+
+oper_root() ->
+    {ok, Path} = mgmtd_schema:lookup_path(["status"]),
+    Path.
+
 %%--------------------------------------------------------------------
 %% Internal functions
 %%--------------------------------------------------------------------
+
+%% mgmtd commit/set can return a string or a structured term
+%% (`{export_error, {missing, module}}`). Never assume a string.
+format_reason(Reason) when is_list(Reason) ->
+    case io_lib:printable_unicode_list(Reason) of
+        true ->
+            Reason ++ "\r\n";
+        false ->
+            lists:flatten(io_lib:format("~p\r\n", [Reason]))
+    end;
+format_reason(Reason) ->
+    lists:flatten(io_lib:format("~p\r\n", [Reason])).
 
 %% Given a string from the user and a tree of menu items match the
 %% command against the tree. Several outcomes:
