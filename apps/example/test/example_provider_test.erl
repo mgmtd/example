@@ -99,7 +99,7 @@ running_server_status() ->
                  mgmtd:lookup(["status", "servers", Key, "pid"])),
     ?assertEqual({ok, 19991},
                  mgmtd:lookup(["status", "servers", Key, "port"])),
-    ?assertEqual({ok, "up"},
+    ?assertEqual({ok, "listening"},
                  mgmtd:lookup(["status", "servers", Key, "state"])),
     ?assertEqual([Key],
                  mgmtd:list_keys(undefined, ["status", "servers"], '$1')).

@@ -11,7 +11,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, status/1]).
+-export([start_link/1, status/1, reconfigure/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -40,11 +40,18 @@
 start_link(Config) ->
     gen_server:start_link(?MODULE, [Config], []).
 
-%% @doc Live listen state for operational `status servers`.
+%% @doc Live bind state for operational `status servers`.
+%% `port` is the bound UDP port, or `undefined` if not listening.
 -spec status(pid()) -> #{port => inet:port_number() | undefined,
                          listening => boolean()}.
 status(Pid) ->
     gen_server:call(Pid, status).
+
+%% @doc Apply a new host/port conf. Rebinds the UDP socket if the port
+%% changed.
+-spec reconfigure(pid(), [{string(), term()}]) -> ok.
+reconfigure(Pid, Conf) ->
+    gen_server:call(Pid, {reconfigure, Conf}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -63,13 +70,8 @@ status(Pid) ->
           ignore.
 init([Config]) ->
     process_flag(trap_exit, true),
-    case proplists:get_value("port", Config) of
-        undefined ->
-            {ok, #state{}};
-        Port ->
-            erlang:send_after(1000, self(), {open_port, Port}),
-            {ok, #state{port = Port}}
-    end.
+    io:format("Starting echo server ~p ~p~n", [self(), Config]),
+    {ok, apply_conf(Config, #state{})}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -88,6 +90,8 @@ init([Config]) ->
           {stop, Reason :: term(), NewState :: #state{}}.
 handle_call(status, _From, #state{socket = Socket, port = Port} = State) ->
     {reply, #{port => Port, listening => Socket =/= undefined}, State};
+handle_call({reconfigure, Conf}, _From, State) ->
+    {reply, ok, apply_conf(Conf, State)};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -117,14 +121,6 @@ handle_cast(_Request, State) ->
           {noreply, NewState :: #state{}, Timeout :: timeout()} |
           {noreply, NewState :: #state{}, hibernate} |
           {stop, Reason :: normal | term(), NewState :: #state{}}.
-handle_info({open_port, Port}, State) ->
-    case gen_udp:open(Port) of
-        {ok, Socket} ->
-            {noreply, State#state{socket = Socket, port = Port}};
-        {error, _Err} ->
-            erlang:send_after(5000, {open_port, Port}),
-            {noreply, State#state{port = Port}}
-    end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -139,7 +135,8 @@ handle_info(_Info, State) ->
 %%--------------------------------------------------------------------
 -spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
                 State :: #state{}) -> any().
-terminate(_Reason, _State) ->
+terminate(_Reason, #state{socket = Socket}) ->
+    close_socket(Socket),
     ok.
 
 %%--------------------------------------------------------------------
@@ -171,3 +168,29 @@ format_status(_Opt, Status) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+apply_conf(Conf, State) ->
+    case proplists:get_value("port", Conf) of
+        undefined ->
+            State;
+        Port when Port =:= State#state.port,
+                  State#state.socket =/= undefined ->
+            State;
+        Port ->
+            bind_port(Port, State)
+    end.
+
+bind_port(Port, State) ->
+    close_socket(State#state.socket),
+    case gen_udp:open(Port) of
+        {ok, Socket} ->
+            io:format("opened echo socket ~p~n", [Socket]),
+            State#state{socket = Socket, port = Port};
+        {error, _Err} ->
+            State#state{socket = undefined, port = undefined}
+    end.
+
+close_socket(undefined) ->
+    ok;
+close_socket(Socket) ->
+    gen_udp:close(Socket).

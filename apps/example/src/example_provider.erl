@@ -3,6 +3,7 @@
 %%%
 %%% Serves the `status` tree: VM identity, running echo servers, and
 %%% host network interfaces. Named as `data_callback` on the schema.
+%%% Server port/state come from the live process, not from config.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(example_provider).
@@ -107,7 +108,12 @@ get_value(["status", "servers", Key, "pid"]) ->
             {ok, pid_to_list(Pid)}
     end;
 get_value(["status", "servers", Key, "port"]) ->
-    server_port(Key);
+    case live_status(Key) of
+        #{port := Port} when is_integer(Port) ->
+            {ok, Port};
+        _ ->
+            {ok, not_found}
+    end;
 get_value(["status", "servers", Key, "state"]) ->
     {ok, server_state(Key)};
 get_value(["status", "interfaces", {Name}, "address"]) ->
@@ -178,41 +184,22 @@ server_children() ->
             supervisor:which_children(example_server_sup)
     end.
 
-server_port(Key) ->
+live_status(Key) ->
     case server_pid(Key) of
         Pid when is_pid(Pid) ->
-            case example_echo_server:status(Pid) of
-                #{port := Port} when is_integer(Port) ->
-                    {ok, Port};
-                _ ->
-                    configured_port(Key)
-            end;
+            example_echo_server:status(Pid);
         undefined ->
-            configured_port(Key)
-    end.
-
-configured_port(Key) ->
-    try mgmtd:lookup(["server", "servers", Key, "port"]) of
-        {ok, Port} when is_integer(Port) ->
-            {ok, Port};
-        _ ->
-            {ok, not_found}
-    catch
-        _:_ ->
-            {ok, not_found}
+            undefined
     end.
 
 server_state(Key) ->
-    case server_pid(Key) of
+    case live_status(Key) of
+        #{listening := true} ->
+            "listening";
+        #{} ->
+            "up";
         undefined ->
-            "down";
-        Pid ->
-            case example_echo_server:status(Pid) of
-                #{listening := true} ->
-                    "listening";
-                _ ->
-                    "up"
-            end
+            "down"
     end.
 
 iface_keys() ->

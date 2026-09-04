@@ -11,7 +11,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_child/3, stop_child/2]).
+-export([start_link/0, start_child/3, stop_child/2, child_pid/2]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -37,10 +37,33 @@ start_link() ->
 
 start_child(_Sup, Id, Args) ->
     Child = child(Id, Args),
-    supervisor:start_child(?SERVER, Child).
+    case supervisor:start_child(?SERVER, Child) of
+        {ok, _} = Ok ->
+            Ok;
+        {ok, _, _} = Ok ->
+            Ok;
+        {error, {already_started, Pid}} ->
+            {ok, Pid};
+        {error, already_present} ->
+            _ = supervisor:delete_child(?SERVER, Id),
+            supervisor:start_child(?SERVER, Child);
+        Other ->
+            Other
+    end.
 
 stop_child(Sup, Id) ->
-    supervisor:terminate_child(Sup, Id).
+    _ = supervisor:terminate_child(Sup, Id),
+    _ = supervisor:delete_child(Sup, Id),
+    ok.
+
+-spec child_pid(pid() | atom(), term()) -> {ok, pid()} | undefined.
+child_pid(Sup, Id) ->
+    case lists:keyfind(Id, 1, supervisor:which_children(Sup)) of
+        {Id, Pid, _, _} when is_pid(Pid) ->
+            {ok, Pid};
+        _ ->
+            undefined
+    end.
 
 %%%===================================================================
 %%% Supervisor callbacks
