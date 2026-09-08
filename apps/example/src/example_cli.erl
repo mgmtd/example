@@ -79,7 +79,8 @@ operational_menu() ->
     [#cmd{name = "show",
           desc = "Show commands",
           action = fun show_operational/2,
-          children = fun operational_show_menu/0},
+          children = fun operational_show_menu/0,
+          pipes = fun ecli_pipe:show_pipes/0},
      #cmd{name = "configure",
           desc = "Enter configuration mode",
           action = fun(J1, _) -> enter_config_mode(J1) end},
@@ -91,7 +92,8 @@ operational_show_menu() ->
     [#cmd{name = "configuration",
           desc = "Show current configuration",
           children = fun(Path) -> config_children(Path, show) end,
-          action = fun show_config/2},
+          action = fun show_config/2,
+          pipes = fun ecli_pipe:config_show_pipes/0},
      #cmd{name = "status",
           desc = "Operational status",
           children = fun oper_children/1,
@@ -101,7 +103,8 @@ configuration_menu() ->
     [#cmd{name = "show",
           desc = "Show configuration",
           children = fun(Path) -> config_children(Path, show) end,
-          action = fun show_config/2},
+          action = fun show_config/2,
+          pipes = fun ecli_pipe:config_show_pipes/0},
      #cmd{name = "set",
           desc = "Set a configuration parameter",
           children = fun(Path) -> config_children(Path, set) end,
@@ -149,8 +152,7 @@ show_config(#example_cli{user_txn = Txn} = J, Path0) ->
                 Path0
         end,
     {ok, ConfigTree} = mgmtd:txn_show(Txn, Path),
-    Str = ecli:format_simple_tree(ConfigTree),
-    {ok, Str, J}.
+    {ok, {data, ConfigTree}, J}.
 
 commit_config(#example_cli{user_txn = Txn} = J) ->
     case mgmtd:txn_commit(Txn) of
@@ -172,7 +174,7 @@ show_oper(#example_cli{} = J, Path0) ->
            end,
     case mgmtd:txn_show(undefined, Path) of
         {ok, Tree} ->
-            {ok, ecli:format_simple_tree(Tree), J};
+            {ok, {data, Tree}, J};
         {error, Reason} ->
             {ok, format_reason(Reason), J}
     end.
@@ -241,31 +243,7 @@ expand_cmd(Str, Menu, J) ->
     end.
 
 execute_cmd(CmdStr, Menu, #example_cli{user_txn = Txn} = J) ->
-    case ecli:lookup(CmdStr, Menu, Txn) of
-        {error, Reason} ->
-            {ok, Reason, J};
-        {ok, Cmd, Leaf} ->
-            %% Cmd here is the list of all items along the path that are part of
-            %% the command. We execute the action associated with the last one
-            %% i.e. for "show configuration config path" we would execute
-            %% the action for the "configuration" item.
-            case lists:last(Cmd) of
-                #{action := Action} ->
-                    case catch Action(J, Leaf) of
-                        {'EXIT', Reason} ->
-                            ?DBG("Executing configuration exit ~p~n", [Reason]),
-                            {ok, "Error executing command", J};
-                        {ok, Result} ->
-                            {ok, Result, J};
-                        {ok, Result, #example_cli{} = J1} ->
-                            {ok, Result, J1};
-                        {ok, Result, UserTxn} ->
-                            {ok, Result, J#example_cli{user_txn = UserTxn}}
-                    end;
-                _ ->
-                    {ok, "Incomplete command", J}
-            end
-    end.
+    ecli:run(CmdStr, Menu, Txn, J).
 
 -ifdef(TEST).
 
