@@ -112,11 +112,16 @@ configuration_menu() ->
      #cmd{name = "set",
           desc = "Set a configuration parameter",
           children = fun(Path) -> config_children(Path, set) end,
-          action = fun set_config/2},
+          action = fun set_config/3,
+          pipes = fun ecli_pipe:set_pipes/0},
      #cmd{name = "delete",
           desc = "Delete a list item",
           children = fun(Path) -> config_children(Path, delete) end,
           action = fun delete_config/2},
+     #cmd{name = "move",
+          desc = "Move an ordered-by user list entry",
+          children = fun(Path) -> config_children(Path, move) end,
+          action = fun move_config/2},
      #cmd{name = "commit",
           desc = "Commit current changes",
           action = fun(J, _) -> commit_config(J) end},
@@ -134,13 +139,86 @@ enter_config_mode(#example_cli{} = J) ->
     Txn = mgmtd:txn_new(),
     {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
 
-set_config(#example_cli{user_txn = Txn} = J, Path) ->
+set_config(#example_cli{user_txn = Txn} = J, Path, Pipes) ->
+    case ecli_pipe:insert_where(Pipes) of
+        undefined ->
+            set_only(J, Txn, Path);
+        Where ->
+            case has_user_ordered(Path) of
+                false ->
+                    {ok, "insert is only valid for ordered-by user lists\r\n", J};
+                true ->
+                    set_and_move(J, Txn, Path, Where)
+            end
+    end.
+
+set_only(#example_cli{} = J, Txn, Path) ->
     case mgmtd:txn_set(Txn, Path) of
-        {ok, UpdatedTxn} ->
-            {ok, "updated\r\n", J#example_cli{user_txn = UpdatedTxn}};
+        {ok, Txn1} ->
+            {ok, "updated\r\n", J#example_cli{user_txn = Txn1}};
         {error, Reason} ->
             {ok, format_reason(Reason), J}
     end.
+
+set_and_move(#example_cli{} = J, Txn, Path, Where) ->
+    case mgmtd:txn_set(Txn, Path) of
+        {ok, Txn1} ->
+            case mgmtd:txn_move(Txn1, Path, Where) of
+                {ok, Txn2} ->
+                    {ok, "updated\r\n", J#example_cli{user_txn = Txn2}};
+                {error, Reason} ->
+                    {ok, format_reason(Reason), J#example_cli{user_txn = Txn1}}
+            end;
+        {error, Reason} ->
+            {ok, format_reason(Reason), J}
+    end.
+
+has_user_ordered(Path) when is_list(Path) ->
+    lists:any(fun(#{ordered_by := user, node_type := NT})
+                   when NT =:= list; NT =:= leaf_list ->
+                      true;
+                 (_) ->
+                      false
+              end, Path);
+has_user_ordered(_) ->
+    false.
+
+move_config(#example_cli{user_txn = Txn} = J, Path) ->
+    case take_where(Path) of
+        {error, Reason} ->
+            {ok, format_reason(Reason), J};
+        {Where, ItemPath} ->
+            case mgmtd:txn_move(Txn, ItemPath, Where) of
+                {ok, Txn1} ->
+                    {ok, "updated\r\n", J#example_cli{user_txn = Txn1}};
+                {error, Reason} ->
+                    {ok, format_reason(Reason), J}
+            end
+    end.
+
+take_where(Path) when is_list(Path) ->
+    case lists:reverse(Path) of
+        [#{action := {move, Where}} | Rest]
+          when Where =:= first; Where =:= last ->
+            {Where, lists:reverse(drop_pos(Rest))};
+        [#{action := {move, {Side, Key}}} | Rest] ->
+            {{Side, Key}, lists:reverse(drop_pos(Rest))};
+        [#{name := Key}, #{name := Side} | Rest]
+          when is_list(Key), (Side =:= "before" orelse Side =:= "after") ->
+            {{pos_side(Side), {Key}}, lists:reverse(Rest)};
+        _ ->
+            {error, "expected first, last, before <key>, or after <key>"}
+    end;
+take_where(_) ->
+    {error, "expected first, last, before <key>, or after <key>"}.
+
+drop_pos([#{name := S} | Rest]) when S =:= "before"; S =:= "after" ->
+    Rest;
+drop_pos(Rest) ->
+    Rest.
+
+pos_side("before") -> before;
+pos_side("after") -> 'after'.
 
 delete_config(#example_cli{user_txn = Txn} = J, Path) ->
     %% io:format(user, "example_cli delete path ~p~n",[Path]),

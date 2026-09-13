@@ -1,0 +1,60 @@
+module example-firewall {
+  namespace "urn:example:firewall";
+  prefix firewall;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  description
+    "Named packet filters. Terms are ordered-by user: first match
+     wins, so insert position is part of the configuration.";
+
+  list filter {
+    key "name";
+    description "A named packet filter (ACL).";
+
+    leaf name {
+      type string;
+      description "Filter name.";
+    }
+
+    list term {
+      key "name";
+      ordered-by user;
+      description
+        "A match/action term. User order is the evaluation order.";
+
+      leaf name {
+        type string;
+        description "Term name.";
+      }
+
+      leaf protocol {
+        type enumeration {
+          enum any;
+          enum tcp;
+          enum udp;
+          enum icmp;
+        }
+        default any;
+        description "L4 protocol to match.";
+      }
+
+      leaf source-port {
+        type inet:port-number;
+        description "Source port to match. Absent means any.";
+      }
+
+      leaf action {
+        type enumeration {
+          enum accept;
+          enum discard;
+          enum reject;
+        }
+        default accept;
+        description "Action when this term matches.";
+      }
+    }
+  }
+}
