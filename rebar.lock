@@ -1,13 +1,26 @@
 {"1.2.0",
-[{<<"eqwalizer_support">>,
+[{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.19.0">>},1},
+ {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.20.0">>},2},
+ {<<"eqwalizer_support">>,
   {git_subdir,"https://github.com/whatsapp/erlang-language-platform.git",
               {ref,"3fd5f68d09256e4e1a0baf1771e8171dddc2cc5f"},
               "eqwalizer/eqwalizer_support"},
   0},
- {<<"json_polyfill">>,{pkg,<<"json_polyfill">>,<<"0.2.2">>},1}]}.
+ {<<"erlydtl">>,
+  {git,"https://github.com/erlydtl/erlydtl.git",
+       {ref,"aae414692b6052e96d890e03bbeeeca0f4dc01c2"}},
+  1},
+ {<<"json_polyfill">>,{pkg,<<"json_polyfill">>,<<"0.2.2">>},1},
+ {<<"ranch">>,{pkg,<<"ranch">>,<<"2.3.0">>},2}]}.
 [
 {pkg_hash,[
- {<<"json_polyfill">>, <<"789016C5B87A043F12196C840480264E630B1955E2E28F124CD38DF7B0A95B25">>}]},
+ {<<"cowboy">>, <<"78B9D92D25A23E56D7341040B67946C04067CD77DE966E2372865F673A8E6F59">>},
+ {<<"cowlib">>, <<"BB525377BA634CD6D68BAC7BFF5D98571F738806139D335DACA827717C5DC172">>},
+ {<<"json_polyfill">>, <<"789016C5B87A043F12196C840480264E630B1955E2E28F124CD38DF7B0A95B25">>},
+ {<<"ranch">>, <<"7DE7B041A9A6A5091A3AA5898D66C0564BE671D87DB4F9D63B1B5EE775B097DF">>}]},
 {pkg_hash_ext,[
- {<<"json_polyfill">>, <<"33CB73ADE53DF5967375817E64E8AF3C6BA35524B2F8B31EB94C265291E724D9">>}]}
+ {<<"cowboy">>, <<"986DAE81F99FCB78EF2D8EFC21D738CEE189410840EEAF32ECA84ADA81DCF6D4">>},
+ {<<"cowlib">>, <<"7D41A0DD2C093041FF3779AC5FE8A1585A68EC7CB2DD1DE0536BDD2452FD7BA1">>},
+ {<<"json_polyfill">>, <<"33CB73ADE53DF5967375817E64E8AF3C6BA35524B2F8B31EB94C265291E724D9">>},
+ {<<"ranch">>, <<"6168EC49409D982F7CFBD83DD083144F6CBE67CAA4036551D2F0A3AD67C9D023">>}]}
 ].

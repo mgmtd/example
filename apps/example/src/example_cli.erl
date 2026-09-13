@@ -92,7 +92,7 @@ operational_show_menu() ->
     [#cmd{name = "configuration",
           desc = "Show current configuration",
           children = fun(Path) -> config_children(Path, show) end,
-          action = fun show_config/2,
+          action = fun show_config/3,
           pipes = fun ecli_pipe:config_show_pipes/0},
      #cmd{name = "status",
           desc = "Operational status",
@@ -103,7 +103,7 @@ configuration_menu() ->
     [#cmd{name = "show",
           desc = "Show configuration",
           children = fun(Path) -> config_children(Path, show) end,
-          action = fun show_config/2,
+          action = fun show_config/3,
           pipes = fun ecli_pipe:config_show_pipes/0},
      #cmd{name = "set",
           desc = "Set a configuration parameter",
@@ -144,14 +144,18 @@ delete_config(#example_cli{user_txn = Txn} = J, Path) ->
             {ok, format_reason(Reason), J}
     end.
 
-show_config(#example_cli{user_txn = Txn} = J, Path0) ->
+show_config(#example_cli{user_txn = Txn} = J, Path0, Pipes) ->
     Path =
         if Path0 == undefined ->
                 [];
            true ->
                 Path0
         end,
-    {ok, ConfigTree} = mgmtd:txn_show(Txn, Path),
+    Opts = case ecli_pipe:wants_defaults(Pipes) of
+               true -> #{defaults => true};
+               false -> #{}
+           end,
+    {ok, ConfigTree} = mgmtd:txn_show(Txn, Path, Opts),
     {ok, {data, ConfigTree}, J}.
 
 commit_config(#example_cli{user_txn = Txn} = J) ->

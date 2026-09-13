@@ -34,6 +34,7 @@ init() ->
     ok = mgmtd:load_json_schema(SchemaFile, #{namespace => example_json,
                                               config => true}),
     ok = mgmtd_cfg_db:init("db", [{backend, sys_config}]),
+    ok = example_http:start(),
     {ok, _Pid} = ecli:open("/var/tmp/mgmtd.cli.socket", example_cli).
 
 cfg_schema() ->

@@ -122,6 +122,7 @@ handle_info(_Info, State) ->
 -spec terminate(Reason :: normal | shutdown | {shutdown, term()} | term(),
                 State :: #state{}) -> any().
 terminate(_Reason, _State) ->
+    example_http:stop(),
     ok.
 
 %%--------------------------------------------------------------------
