@@ -273,11 +273,17 @@ show_rollback_list(J, _) ->
 format_rollback_entry({N, Meta}) ->
     Time = case maps:get(time, Meta, undefined) of
                T when is_integer(T) ->
-                   " " ++ calendar:system_time_to_rfc3339(T, [{unit, second}]);
+                   " " ++ rfc3339_list(T);
                _ ->
                    ""
            end,
     io_lib:format("~p~s\r\n", [N, Time]).
+
+rfc3339_list(T) ->
+    case calendar:system_time_to_rfc3339(T, [{unit, second}]) of
+        S when is_list(S) -> S;
+        B when is_binary(B) -> binary_to_list(B)
+    end.
 
 show_rollback_n(J, N) ->
     case mgmtd:rollback_show(N) of

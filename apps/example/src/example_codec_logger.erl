@@ -30,7 +30,7 @@ export(Items) when is_list(Items) ->
 export(Other) ->
     throw({export_error, {invalid_logger_list, Other}}).
 
--spec import(term()) -> term().
+-spec import(term()) -> [term()].
 import(Items) when is_list(Items) ->
     [import_handler(Item) || Item <- Items];
 import(Other) ->

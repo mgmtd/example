@@ -77,9 +77,12 @@ system_leafs() ->
 
 interfaces_from_host() ->
     {ok, Keys} = mgmtd:lookup(["status", "interfaces"]),
-    ?assert(is_list(Keys) andalso Keys =/= []),
+    true = is_list(Keys),
+    ?assert(Keys =/= []),
     [Key | _] = Keys,
+    true = is_tuple(Key),
     {ok, Names} = mgmtd:lookup(["status", "interfaces", Key]),
+    true = is_list(Names),
     ?assertEqual(["address", "flags", "mac", "mtu", "name"], lists:sort(Names)),
     ?assertEqual({ok, element(1, Key)},
                  mgmtd:lookup(["status", "interfaces", Key, "name"])),

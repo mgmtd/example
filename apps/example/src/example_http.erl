@@ -47,7 +47,10 @@ stop() ->
 
 -spec port() -> inet:port_number().
 port() ->
-    ranch:get_port(?LISTENER).
+    case ranch:get_port(?LISTENER) of
+        Port when is_integer(Port) ->
+            Port
+    end.
 
 %% Cowboy callback: `/` is host chrome; UI actions go to mgmtd.
 init(Req, home) ->

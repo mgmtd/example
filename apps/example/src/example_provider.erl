@@ -264,7 +264,7 @@ first_ipv4([]) ->
 
 format_mac(Bytes) ->
     lists:flatten(
-      string:join([io_lib:format("~2.16.0b", [B]) || B <- Bytes], ":")).
+      string:join([lists:flatten(io_lib:format("~2.16.0b", [B])) || B <- Bytes], ":")).
 
 format_uptime(Ms) ->
     Sec = Ms div 1000,

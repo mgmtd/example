@@ -61,6 +61,8 @@ import_unpacks_handler_tuples() ->
     Wire = logger_wire(),
     Default = example_codec_logger:import(Wire),
     [DefaultH, InfoH] = Default,
+    true = is_list(DefaultH),
+    true = is_list(InfoH),
     ?assertEqual("default", proplists:get_value(id, DefaultH)),
     ?assertEqual("logger_std_h", proplists:get_value(module, DefaultH)),
     ?assertEqual("error", proplists:get_value(level, DefaultH)),
@@ -76,7 +78,9 @@ roundtrip_default_form() ->
           {level, "error"},
           {config, [{file, "log/erlang.log"}]}]],
     Back = example_codec_logger:import(example_codec_logger:export(Default)),
-    ?assertEqual(lists:sort(hd(Default)), lists:sort(hd(Back))).
+    Item = hd(Back),
+    true = is_list(Item),
+    ?assertEqual(lists:sort(hd(Default)), lists:sort(Item)).
 
 import_rejects_filters() ->
     ?assertThrow({import_error, {unsupported_logger_entry, {filters, log, []}}},
@@ -206,6 +210,7 @@ assert_logger_lookups() ->
     ?assertEqual({ok, "debug"}, mgmtd:lookup(Info ++ ["level"])),
     ?assertEqual({ok, "log/debug.log"}, mgmtd:lookup(Info ++ ["config", "file"])),
     {ok, Keys} = mgmtd:lookup(["kernel", "logger"]),
+    true = is_list(Keys),
     ?assertEqual([{"default"}, {"info"}], lists:sort(Keys)).
 
 write_otp_file() ->
