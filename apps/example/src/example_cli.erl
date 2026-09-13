@@ -91,9 +91,13 @@ operational_menu() ->
 operational_show_menu() ->
     [#cmd{name = "configuration",
           desc = "Show current configuration",
-          children = fun(Path) -> config_children(Path, show) end,
+          children = fun show_config_children/1,
           action = fun show_config/3,
-          pipes = fun ecli_pipe:config_show_pipes/0},
+          pipes = fun config_show_pipes/0},
+     #cmd{name = "rollback",
+          desc = "Show configuration rollback snapshots",
+          children = fun rollback_index_show_cmds/0,
+          action = fun show_rollback_list/2},
      #cmd{name = "status",
           desc = "Operational status",
           children = fun oper_children/1,
@@ -104,7 +108,7 @@ configuration_menu() ->
           desc = "Show configuration",
           children = fun(Path) -> config_children(Path, show) end,
           action = fun show_config/3,
-          pipes = fun ecli_pipe:config_show_pipes/0},
+          pipes = fun config_show_pipes/0},
      #cmd{name = "set",
           desc = "Set a configuration parameter",
           children = fun(Path) -> config_children(Path, set) end,
@@ -116,6 +120,9 @@ configuration_menu() ->
      #cmd{name = "commit",
           desc = "Commit current changes",
           action = fun(J, _) -> commit_config(J) end},
+     #cmd{name = "rollback",
+          desc = "Restore a previous configuration into this session",
+          children = fun rollback_index_load_cmds/0},
      #cmd{name = "exit",
           desc = "Exit configuration mode",
           action = fun(J1, _) -> exit_config_mode(J1) end}].
@@ -151,12 +158,22 @@ show_config(#example_cli{user_txn = Txn} = J, Path0, Pipes) ->
            true ->
                 Path0
         end,
-    Opts = case ecli_pipe:wants_defaults(Pipes) of
-               true -> #{defaults => true};
-               false -> #{}
-           end,
-    {ok, ConfigTree} = mgmtd:txn_show(Txn, Path, Opts),
-    {ok, {data, ConfigTree}, J}.
+    case ecli_pipe:compare_against(Pipes) of
+        false ->
+            Opts = case ecli_pipe:wants_defaults(Pipes) of
+                       true -> #{defaults => true};
+                       false -> #{}
+                   end,
+            {ok, ConfigTree} = mgmtd:txn_show(Txn, Path, Opts),
+            {ok, {data, ConfigTree}, J};
+        Against ->
+            case mgmtd:txn_diff_text(Txn, Path, #{against => Against}) of
+                {ok, Text} ->
+                    {ok, Text, J};
+                {error, Reason} ->
+                    {ok, format_reason(Reason), J}
+            end
+    end.
 
 commit_config(#example_cli{user_txn = Txn} = J) ->
     case mgmtd:txn_commit(Txn) of
@@ -192,6 +209,91 @@ show_operational(#example_cli{user_txn = _Txn}, Item) ->
 config_children(Path, CmdType) ->
     [C || C <- mgmtd:schema_children(Path, CmdType),
           maps:get(config, C, true)].
+
+show_config_children(Path) when Path =:= []; Path =:= undefined ->
+    rollback_show_cmds() ++ config_children([], show);
+show_config_children(Path) ->
+    config_children(Path, show).
+
+%% Configuration `show` pipes: same as ecli, but `compare rollback`
+%% completes existing snapshot numbers (with timestamps) rather than a
+%% free-form integer.
+config_show_pipes() ->
+    [compare_pipe(C) || C <- ecli_pipe:config_show_pipes()].
+
+compare_pipe(#cmd{name = "compare"} = C) ->
+    C#cmd{children = fun compare_pipe_children/0};
+compare_pipe(C) ->
+    C.
+
+compare_pipe_children() ->
+    [#cmd{name = "rollback",
+          desc = "Compare against a rollback snapshot",
+          children = fun rollback_index_compare_cmds/0}].
+
+rollback_index_compare_cmds() ->
+    Zero = [#cmd{name = "0",
+                 desc = "Currently committed configuration",
+                 action = {pipe, {compare, {rollback, 0}}}}],
+    Zero ++
+        [#cmd{name = integer_to_list(N),
+              desc = rollback_desc(N, Meta),
+              action = {pipe, {compare, {rollback, N}}}}
+         || {N, Meta} <- mgmtd:rollback_list()].
+
+rollback_show_cmds() ->
+    [#cmd{name = "rollback",
+          desc = "Show a rollback snapshot",
+          children = fun rollback_index_show_cmds/0,
+          action = fun show_rollback_list/2}].
+
+rollback_index_show_cmds() ->
+    [#cmd{name = integer_to_list(N),
+          desc = rollback_desc(N, Meta),
+          action = fun(J, _) -> show_rollback_n(J, N) end}
+     || {N, Meta} <- mgmtd:rollback_list()].
+
+rollback_index_load_cmds() ->
+    [#cmd{name = integer_to_list(N),
+          desc = rollback_desc(N, Meta),
+          action = fun(J, _) -> do_rollback(J, N) end}
+     || {N, Meta} <- mgmtd:rollback_list()].
+
+rollback_desc(N, #{time := T}) when is_integer(T) ->
+    lists:flatten(io_lib:format("Commit ~p ago (~s)",
+                                [N, calendar:system_time_to_rfc3339(
+                                      T, [{unit, second}])]));
+rollback_desc(N, _Meta) ->
+    lists:flatten(io_lib:format("Commit ~p ago", [N])).
+
+show_rollback_list(J, _) ->
+    Lines = [format_rollback_entry(E) || E <- mgmtd:rollback_list()],
+    {ok, Lines, J}.
+
+format_rollback_entry({N, Meta}) ->
+    Time = case maps:get(time, Meta, undefined) of
+               T when is_integer(T) ->
+                   " " ++ calendar:system_time_to_rfc3339(T, [{unit, second}]);
+               _ ->
+                   ""
+           end,
+    io_lib:format("~p~s\r\n", [N, Time]).
+
+show_rollback_n(J, N) ->
+    case mgmtd:rollback_show(N) of
+        {ok, Tree} ->
+            {ok, {data, Tree}, J};
+        {error, Reason} ->
+            {ok, format_reason(Reason), J}
+    end.
+
+do_rollback(#example_cli{user_txn = Txn} = J, N) ->
+    case mgmtd:txn_rollback(Txn, N) of
+        {ok, Txn2} ->
+            {ok, "ok\r\n", J#example_cli{user_txn = Txn2}};
+        {error, Reason} ->
+            {ok, format_reason(Reason), J}
+    end.
 
 %% First level under `show status` is the operational `status` container.
 %% Deeper completion uses the schema maps' own children funs.
