@@ -43,7 +43,9 @@ cli_expand_test_() ->
       fun expand_move_offers_positions/0,
       fun move_term_first/0,
       fun move_term_after/0,
-      fun move_incomplete_without_where/0]}.
+      fun move_incomplete_without_where/0,
+      fun read_only_hides_configure/0,
+      fun admin_sees_configure/0]}.
 
 expand_set_leaf_shows_name() ->
     {ok, J} = example_cli:init(),
@@ -219,3 +221,31 @@ sibling_list_keys(Menu) ->
     [hd(string:tokens(string:trim(L), " "))
      || L <- string:tokens(lists:flatten(Menu), "\r\n"),
         string:trim(L) =/= ""].
+
+read_only_hides_configure() ->
+    Prev = application:get_env(mgmtd, aaa),
+    application:set_env(mgmtd, aaa, [{default_role, read_only}]),
+    try
+        {ok, J} = example_cli:init(#{uid => 4242, user => "guest"}),
+        {no, [], Menu, J1} = example_cli:expand([], J),
+        MenuBin = iolist_to_binary(Menu),
+        ?assertEqual(nomatch, binary:match(MenuBin, <<"configure">>)),
+        ?assertEqual(true, binary:match(MenuBin, <<"show">>) =/= nomatch),
+        {ok, Out, J2} = example_cli:execute("configure", J1),
+        {ok, Prompt} = example_cli:prompt(J2),
+        ?assertEqual(true, lists:suffix("> ", Prompt)),
+        ?assertEqual(true, string:str(lists:flatten(Out), "not understood") > 0)
+    after
+        restore_aaa(Prev)
+    end.
+
+admin_sees_configure() ->
+    {ok, J} = example_cli:init(#{uid => 0, user => "root"}),
+    {no, [], Menu, _} = example_cli:expand([], J),
+    MenuBin = iolist_to_binary(Menu),
+    ?assertEqual(true, binary:match(MenuBin, <<"configure">>) =/= nomatch).
+
+restore_aaa(undefined) ->
+    application:unset_env(mgmtd, aaa);
+restore_aaa({ok, Val}) ->
+    application:set_env(mgmtd, aaa, Val).

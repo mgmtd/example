@@ -13,24 +13,42 @@
 -define(DBG(DATA), io:format("[~p:~p] ~p~n", [?MODULE, ?LINE, DATA])).
 -define(DBG(FORMAT, ARGS), io:format("[~p:~p] " ++ FORMAT, [?MODULE, ?LINE] ++ ARGS)).
 
--export([init/0, banner/1, prompt/1, mode_after_exit/1, expand/2, execute/2]).
+-export([init/0, init/1, banner/1, prompt/1, mode_after_exit/1, expand/2, execute/2]).
 
 -record(example_cli,
         {mode = operational,
-         user_txn}).             % Transaction store for command sequences that need one
+         user_txn,             % Transaction store for command sequences that need one
+         role = admin,
+         user}).
 
 %%--------------------------------------------------------------------
 %% CLI behaviour mandatory callbacks
 %%--------------------------------------------------------------------
 init() ->
-    {ok, #example_cli{}}.
+    init(#{}).
 
-banner(#example_cli{}) ->
+init(Peer) when is_map(Peer) ->
+    Role = mgmtd:aaa_role(Peer),
+    User = maps:get(user, Peer, undefined),
+    {ok, #example_cli{role = Role, user = User}}.
+
+banner(#example_cli{role = Role, user = User}) ->
+    Who =
+        case User of
+            undefined -> "";
+            Name -> " as " ++ Name
+        end,
+    Hint =
+        case Role of
+            read_only -> " (read-only)";
+            _ -> ""
+        end,
     {ok,
-     "\r\nWelcome to the example system CLI\r\n\nHit TAB, SPC or "
-     "? at any time to see available options\r\n\r\n"}.
+     "\r\nWelcome to the example system CLI" ++ Who ++ Hint ++
+         "\r\n\nHit TAB, SPC or "
+         "? at any time to see available options\r\n\r\n"}.
 
-prompt(#example_cli{mode = Mode}) ->
+prompt(#example_cli{mode = Mode, user = User}) ->
     Suffix =
         case Mode of
             operational ->
@@ -38,12 +56,23 @@ prompt(#example_cli{mode = Mode}) ->
             configuration ->
                 "# "
         end,
-    case inet:gethostname() of
-        {ok, Hostname} ->
-            {ok, Hostname ++ Suffix};
-        _ ->
-            {ok, Suffix}
-    end.
+    Host =
+        case inet:gethostname() of
+            {ok, Hostname} ->
+                Hostname;
+            _ ->
+                ""
+        end,
+    Prefix =
+        case User of
+            undefined ->
+                Host;
+            Name when Host =:= "" ->
+                Name;
+            Name ->
+                Name ++ "@" ++ Host
+        end,
+    {ok, Prefix ++ Suffix}.
 
 mode_after_exit(#example_cli{mode = operational}) ->
     stop;
@@ -52,22 +81,22 @@ mode_after_exit(#example_cli{mode = configuration, user_txn = Txn} = J) ->
     J#example_cli{mode = operational, user_txn = undefined}.
 
 expand([], #example_cli{mode = operational} = J) ->
-    {no, [], ecli:format_menu(operational_menu()), J};
+    {no, [], ecli:format_menu(operational_menu(J)), J};
 expand(Chars, #example_cli{mode = operational} = J) ->
     %% ?DBG("expand ~p~n",[Chars]),
-    expand_cmd(Chars, operational_menu(), J);
+    expand_cmd(Chars, operational_menu(J), J);
 expand([], #example_cli{mode = configuration} = J) ->
-    {no, [], ecli:format_menu(configuration_menu()), J};
+    {no, [], ecli:format_menu(configuration_menu(J)), J};
 expand(Chars, #example_cli{mode = configuration} = J) ->
     %% ?DBG("expand config ~p~n",[Chars]),
-    expand_cmd(Chars, configuration_menu(), J).
+    expand_cmd(Chars, configuration_menu(J), J).
 
 execute(CmdStr, #example_cli{mode = operational} = J) ->
     ?DBG("Executing operational Command ~p~n", [CmdStr]),
-    execute_cmd(CmdStr, operational_menu(), J);
+    execute_cmd(CmdStr, operational_menu(J), J);
 execute(CmdStr, #example_cli{mode = configuration} = J) ->
     ?DBG("Executing configuration Command ~p~n", [CmdStr]),
-    execute_cmd(CmdStr, configuration_menu(), J).
+    execute_cmd(CmdStr, configuration_menu(J), J).
 
 %%--------------------------------------------------------------------
 %% Menu definitions
@@ -75,14 +104,19 @@ execute(CmdStr, #example_cli{mode = configuration} = J) ->
 %% The Grammar list provides a mechanism to specify the various parts
 %% of an entire command
 %%--------------------------------------------------------------------
-operational_menu() ->
+operational_menu(#example_cli{role = Role}) ->
+    ecli:permit(operational_cmds(), mgmtd:aaa_accesses(Role)).
+
+operational_cmds() ->
     [#cmd{name = "show",
           desc = "Show commands",
+          access = read,
           action = fun show_operational/2,
           children = fun operational_show_menu/0,
           pipes = fun ecli_pipe:show_pipes/0},
      #cmd{name = "configure",
           desc = "Enter configuration mode",
+          access = write,
           action = fun(J1, _) -> enter_config_mode(J1) end},
      #cmd{name = "exit",
           desc = "Close session",
@@ -103,30 +137,39 @@ operational_show_menu() ->
           children = fun oper_children/1,
           action = fun show_oper/2}].
 
-configuration_menu() ->
+configuration_menu(#example_cli{role = Role}) ->
+    ecli:permit(configuration_cmds(), mgmtd:aaa_accesses(Role)).
+
+configuration_cmds() ->
     [#cmd{name = "show",
           desc = "Show configuration",
+          access = read,
           children = fun(Path) -> config_children(Path, show) end,
           action = fun show_config/3,
           pipes = fun config_show_pipes/0},
      #cmd{name = "set",
           desc = "Set a configuration parameter",
+          access = write,
           children = fun(Path) -> config_children(Path, set) end,
           action = fun set_config/3,
           pipes = fun ecli_pipe:set_pipes/0},
      #cmd{name = "delete",
           desc = "Delete a list item",
+          access = write,
           children = fun(Path) -> config_children(Path, delete) end,
           action = fun delete_config/2},
      #cmd{name = "move",
           desc = "Move an ordered-by user list entry",
+          access = write,
           children = fun(Path) -> config_children(Path, move) end,
           action = fun move_config/2},
      #cmd{name = "commit",
           desc = "Commit current changes",
+          access = write,
           action = fun(J, _) -> commit_config(J) end},
      #cmd{name = "rollback",
           desc = "Restore a previous configuration into this session",
+          access = write,
           children = fun rollback_index_load_cmds/0},
      #cmd{name = "exit",
           desc = "Exit configuration mode",
@@ -135,9 +178,14 @@ configuration_menu() ->
 %%--------------------------------------------------------------------
 %% Action implementations
 %%--------------------------------------------------------------------
-enter_config_mode(#example_cli{} = J) ->
-    Txn = mgmtd:txn_new(),
-    {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}.
+enter_config_mode(#example_cli{role = Role} = J) ->
+    case mgmtd:aaa_permits(Role, write) of
+        false ->
+            {ok, "Permission denied\r\n", J};
+        true ->
+            Txn = mgmtd:txn_new(),
+            {ok, "", J#example_cli{mode = configuration, user_txn = Txn}}
+    end.
 
 set_config(#example_cli{user_txn = Txn} = J, Path, Pipes) ->
     case ecli_pipe:insert_where(Pipes) of
