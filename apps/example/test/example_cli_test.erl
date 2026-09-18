@@ -16,6 +16,7 @@ setup() ->
     ok = mgmtd:load_function_schema(fun example:cfg_schema/0,
                                     #{config => true}),
     ok = example:load_firewall_yang(),
+    ok = example:load_rpc_yang(),
     ok = mgmtd_cfg_db:init(?DB_DIR, [{backend, mnesia}]),
     ok.
 
@@ -45,7 +46,11 @@ cli_expand_test_() ->
       fun move_term_after/0,
       fun move_incomplete_without_where/0,
       fun read_only_hides_configure/0,
-      fun admin_sees_configure/0]}.
+      fun admin_sees_configure/0,
+      fun expand_echo_offers_in/0,
+      fun echo_term_in_hi/0,
+      fun echo_term_quoted/0,
+      fun echo_term_empty/0]}.
 
 expand_set_leaf_shows_name() ->
     {ok, J} = example_cli:init(),
@@ -244,6 +249,31 @@ admin_sees_configure() ->
     {no, [], Menu, _} = example_cli:expand([], J),
     MenuBin = iolist_to_binary(Menu),
     ?assertEqual(true, binary:match(MenuBin, <<"configure">>) =/= nomatch).
+
+expand_echo_offers_in() ->
+    {ok, J} = example_cli:init(),
+    {yes, " ", Menu, _} = example_cli:expand("echo", J),
+    MenuBin = iolist_to_binary(Menu),
+    ?assertEqual(true, binary:match(MenuBin, <<"in">>) =/= nomatch),
+    ?assertEqual(true, binary:match(MenuBin, <<"String to echo">>) =/= nomatch).
+
+echo_term_in_hi() ->
+    {ok, J} = example_cli:init(),
+    {ok, Out, _} = example_cli:execute("echo in hi", J),
+    Flat = lists:flatten(Out),
+    ?assertEqual(true, string:str(Flat, "echo:hi") > 0).
+
+echo_term_quoted() ->
+    {ok, J} = example_cli:init(),
+    {ok, Out, _} = example_cli:execute("echo in \"hello world\"", J),
+    Flat = lists:flatten(Out),
+    ?assertEqual(true, string:str(Flat, "echo:hello world") > 0).
+
+echo_term_empty() ->
+    {ok, J} = example_cli:init(),
+    {ok, Out, _} = example_cli:execute("echo", J),
+    Flat = lists:flatten(Out),
+    ?assertEqual(true, string:str(Flat, "echo:") > 0).
 
 restore_aaa(undefined) ->
     application:unset_env(mgmtd, aaa);

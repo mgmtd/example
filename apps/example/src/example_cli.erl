@@ -118,6 +118,11 @@ operational_cmds() ->
           desc = "Enter configuration mode",
           access = write,
           action = fun(J1, _) -> enter_config_mode(J1) end},
+     #cmd{name = "echo",
+          desc = "Echo a string",
+          children = fun echo_input/0,
+          action = fun echo_rpc/2,
+          pipes = fun ecli_pipe:show_pipes/0},
      #cmd{name = "exit",
           desc = "Close session",
           action = fun enter_config_mode/1}].
@@ -330,6 +335,32 @@ show_operational(#example_cli{user_txn = _Txn}, Item) ->
     ?DBG("Executing show operational ~p~n", [Item]),
     {ok, "Operational statuses\r\n"}.
 
+%% YANG rpc `echo` (`example-rpc`). CLI: `echo in hi`.
+echo_input() ->
+    mgmtd:schema_children(["rpc", "echo", "input"], set).
+
+echo_rpc(#example_cli{} = J, Path) ->
+    case mgmtd:rpc(["rpc", "echo"], rpc_input_from_path(Path)) of
+        {ok, empty} ->
+            {ok, "", J};
+        {ok, Out} when is_map(Out) ->
+            {ok, {data, rpc_output_tree(Out)}, J};
+        {error, Reason} ->
+            {ok, format_reason(Reason), J}
+    end.
+
+rpc_input_from_path(Path) when is_list(Path) ->
+    lists:foldl(fun(#{name := Name, value := Val}, Acc) ->
+                        Acc#{Name => Val};
+                   (_, Acc) ->
+                        Acc
+                end, #{}, Path);
+rpc_input_from_path(_) ->
+    #{}.
+
+rpc_output_tree(Map) ->
+    [{Name, {value, Val}} || {Name, Val} <- maps:to_list(Map)].
+
 %% Configuration menus hide `config = false` nodes so `set` / `show
 %% configuration` do not offer operational data.
 config_children(Path, CmdType) ->
@@ -442,6 +473,10 @@ oper_root() ->
 
 %% mgmtd commit/set can return a string or a structured term
 %% (`{export_error, {missing, module}}`). Never assume a string.
+format_reason(#{message := Msg}) ->
+    format_reason(Msg);
+format_reason(Reason) when is_binary(Reason) ->
+    format_reason(binary_to_list(Reason));
 format_reason(Reason) when is_list(Reason) ->
     case io_lib:printable_unicode_list(Reason) of
         true ->

@@ -1,0 +1,24 @@
+module example-rpc {
+  namespace "urn:example:rpc";
+  prefix rpc;
+
+  description
+    "Host-callback rpc. Invoke with
+     mgmtd:rpc(['rpc', 'echo'], #{\"in\" => \"hi\"})
+     or POST /restconf/operations/example-rpc:echo.";
+
+  rpc echo {
+    description "Echo a string.";
+    input {
+      leaf in {
+        type string;
+        description "String to echo";
+      }
+    }
+    output {
+      leaf out {
+        type string;
+      }
+    }
+  }
+}
