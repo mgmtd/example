@@ -2,10 +2,16 @@ module example-rpc {
   namespace "urn:example:rpc";
   prefix rpc;
 
+  import mgmtd {
+    prefix mgmtd;
+  }
+
   description
     "Host-callback rpc. Invoke with
      mgmtd:rpc(['rpc', 'echo'], #{\"in\" => \"hi\"})
      or POST /restconf/operations/example-rpc:echo.";
+
+  mgmtd:data-callback "example_rpc";
 
   rpc echo {
     description "Echo a string.";

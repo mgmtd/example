@@ -2,8 +2,10 @@
 %%% @doc Operational-data provider for the example application.
 %%%
 %%% Serves the `status` tree: VM identity, running echo servers, and
-%%% host network interfaces. Named as `data_callback` on the schema.
-%%% Server port/state come from the live process, not from config.
+%%% host network interfaces. Named as `data_callback` on the function
+%%% schema, or as `mgmtd:data-callback "example_provider"` in
+%%% `example-status.yang`. Server port/state come from the live
+%%% process, not from config.
 %%% @end
 %%%-------------------------------------------------------------------
 -module(example_provider).

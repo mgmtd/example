@@ -1,7 +1,8 @@
 %%%-------------------------------------------------------------------
 %%% @doc Host callback for the example-rpc YANG module.
 %%%
-%%% Load with `#{callback => example_rpc}`. `invoke/2` is the
+%%% Named from YANG as `mgmtd:data-callback "example_rpc"` (or the
+%%% load-option `callback => example_rpc`). `invoke/2` is the
 %%% `mgmtd_rpc` behaviour: input/output maps are keyed by child
 %%% names (strings) with already-cast Erlang values.
 %%% @end

@@ -13,6 +13,7 @@
 -export([cfg_schema/0, kernel_schema/0, oper_schema/0]).
 -export([load_firewall_yang/0, firewall_yang_file/0]).
 -export([load_rpc_yang/0, rpc_yang_file/0]).
+-export([load_status_yang/0, status_yang_file/0]).
 
 -include_lib("mgmtd/include/mgmtd.hrl").
 
@@ -33,7 +34,7 @@ init() ->
     ok = load_rpc_yang(),
     ok = mgmtd:load_function_schema(fun kernel_schema/0,
                                     #{namespace => kernel, config => true}),
-    ok = mgmtd:load_function_schema(fun oper_schema/0),
+    ok = load_status_yang(),
     SchemaFile = filename:join(code:priv_dir(example), "example_schema.json"),
     ok = mgmtd:load_json_schema(SchemaFile, #{namespace => example_json,
                                               config => true}),
@@ -49,15 +50,24 @@ load_firewall_yang() ->
 firewall_yang_file() ->
     filename:join(code:priv_dir(example), "yang/example-firewall.yang").
 
-%% @doc YANG rpc `echo`. Prefix `rpc`. Invoke with
+%% @doc YANG rpc `echo`. Prefix `rpc`. The host module is named in
+%% the YANG (`mgmtd:data-callback "example_rpc"`). Invoke with
 %% `mgmtd:rpc(["rpc", "echo"], #{"in" => "hi"})`,
 %% CLI `echo in hi`, or
 %% `POST /restconf/operations/example-rpc:echo`.
 load_rpc_yang() ->
-    mgmtd:load_yang_module(rpc_yang_file(), #{callback => example_rpc}).
+    mgmtd:load_yang_module(rpc_yang_file()).
 
 rpc_yang_file() ->
     filename:join(code:priv_dir(example), "yang/example-rpc.yang").
+
+%% @doc Operational `status` tree. Prefix `default` so CLI paths stay
+%% `show status ...`. Provider is `mgmtd:data-callback "example_provider"`.
+load_status_yang() ->
+    mgmtd:load_yang_module(status_yang_file(), #{prefix => default}).
+
+status_yang_file() ->
+    filename:join(code:priv_dir(example), "yang/example-status.yang").
 
 cfg_schema() ->
     [#container{name = "interface",

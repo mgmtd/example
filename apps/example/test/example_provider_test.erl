@@ -55,6 +55,23 @@ schema_callback_test() ->
         mgmtd:remove_schema()
     end.
 
+yang_callback_test() ->
+    start_mgmtd(),
+    lists:foreach(fun mgmtd:remove_schema/1, mgmtd:registered_schemas()),
+    ok = example:load_status_yang(),
+    try
+        #{config := false, data_callback := example_provider} =
+            mgmtd_schema:lookup(["status"]),
+        ?assertEqual(example_provider,
+                     mgmtd_schema:data_callback(["status", "system", "node"])),
+        ?assertEqual(example_provider,
+                     mgmtd_schema:data_callback(["status", "servers"])),
+        ?assertEqual(example_provider,
+                     mgmtd_schema:data_callback(["status", "interfaces", "mtu"]))
+    after
+        mgmtd:remove_schema()
+    end.
+
 provider_test_() ->
     {setup, fun setup/0, fun teardown/1,
      [fun system_leafs/0,

@@ -1,0 +1,99 @@
+module example-status {
+  namespace "urn:example:status";
+  prefix status;
+
+  import mgmtd {
+    prefix mgmtd;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  description
+    "Operational status for the example application.
+     Served by example_provider (mgmtd:data-callback).";
+
+  container status {
+    config false;
+    mgmtd:data-callback "example_provider";
+    description "Operational status";
+
+    container system {
+      description "Erlang node";
+
+      leaf node {
+        type string;
+        description "Erlang node name";
+      }
+      leaf otp-release {
+        type string;
+        description "OTP release";
+      }
+      leaf uptime {
+        type string;
+        description "Time since the VM started";
+      }
+      leaf processes {
+        type uint32;
+        description "Number of Erlang processes";
+      }
+      leaf memory {
+        type uint64;
+        description "Total memory in bytes";
+      }
+    }
+
+    list servers {
+      key "name";
+      description "Running echo servers";
+
+      leaf name {
+        type string;
+        description "Server name";
+      }
+      leaf pid {
+        type string;
+        description "Erlang pid";
+      }
+      leaf port {
+        type inet:port-number;
+        description "Listen port";
+      }
+      leaf state {
+        type enumeration {
+          enum up;
+          enum down;
+          enum listening;
+        }
+        description "Process / socket state";
+      }
+    }
+
+    list interfaces {
+      key "name";
+      description "Host network interfaces";
+
+      leaf name {
+        type string;
+        description "Interface name";
+      }
+      leaf address {
+        type inet:ip-address;
+        description "IPv4 address";
+      }
+      leaf mac {
+        type string;
+        description "Hardware address";
+      }
+      leaf mtu {
+        type uint32;
+        description "MTU";
+      }
+      leaf-list flags {
+        type string;
+        description "Interface flags";
+      }
+    }
+  }
+}
