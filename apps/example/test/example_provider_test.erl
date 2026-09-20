@@ -72,6 +72,22 @@ yang_callback_test() ->
         mgmtd:remove_schema()
     end.
 
+%% Same order as `example:init/0`: function cfg schema, then status YANG
+%% folded into the silent prefix (`#{prefix => default}`).
+yang_after_cfg_schema_test() ->
+    start_mgmtd(),
+    lists:foreach(fun mgmtd:remove_schema/1, mgmtd:registered_schemas()),
+    ok = mgmtd:load_function_schema(fun example:cfg_schema/0,
+                                    #{config => true}),
+    try
+        ?assertEqual(ok, example:load_status_yang()),
+        #{config := true} = mgmtd_schema:lookup(["server"]),
+        #{config := false, data_callback := example_provider} =
+            mgmtd_schema:lookup(["status"])
+    after
+        mgmtd:remove_schema()
+    end.
+
 provider_test_() ->
     {setup, fun setup/0, fun teardown/1,
      [fun system_leafs/0,
